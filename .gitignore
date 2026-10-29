@@ -2,3 +2,6 @@ node_modules/
 out/
 .env
 *.key
+forge-out/
+forge-cache/
+broadcast/*/31337/

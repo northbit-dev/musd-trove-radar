@@ -4,12 +4,18 @@
   "description": "Liquidation & recovery-mode radar plus keeper for MUSD troves on Mezo testnet",
   "type": "module",
   "license": "GPL-3.0-or-later",
-  "bin": { "trove-radar": "src/cli.mjs" },
+  "bin": {
+    "trove-radar": "src/cli.mjs"
+  },
   "scripts": {
     "test": "node --test test/*.test.mjs",
     "test:offline": "OFFLINE=1 node --test test/*.test.mjs",
     "snapshot": "node src/cli.mjs snapshot",
-    "dashboard": "node src/cli.mjs dashboard"
+    "dashboard": "node src/cli.mjs dashboard",
+    "test:sol": "forge test --fork-url ${MEZO_FORK_RPC:-http://127.0.0.1:8545}",
+    "guard": "node src/cli.mjs guard"
   },
-  "dependencies": { "viem": "^2" }
+  "dependencies": {
+    "viem": "^2"
+  }
 }

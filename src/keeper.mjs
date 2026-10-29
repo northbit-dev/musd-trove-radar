@@ -5,6 +5,7 @@ import { createWalletClient, http, formatEther } from 'viem';
 import { privateKeyToAccount } from 'viem/accounts';
 import { mezoTestnet, simulateLiquidation } from './chain.mjs';
 import { NETWORK, C } from './config.mjs';
+export { runProtectKeeper, guardTargets } from './guard.mjs';
 
 export const DEFAULT_KEY_FILE = process.env.MEZO_KEY_FILE || path.join(os.homedir(), '.secrets', 'mezo-testnet.key');
 

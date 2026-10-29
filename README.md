@@ -11,7 +11,7 @@ MUSD is minted against BTC in troves. When a trove's collateral ratio (ICR) drop
 
 Trove Radar reads every active trove straight from the MUSD contracts (TroveManager, SortedTroves, StabilityPool, PriceFeed and InterestRateManager) with multicall, pinned to a single block. It then answers those questions on the command line, as JSON or Markdown, and in a static HTML dashboard.
 
-It also shows the **redemption queue**: which troves MUSD redemptions will hit first and how much MUSD sits ahead of any given trove. A **watcher** sends alerts to Slack, Discord, Telegram or any signed JSON webhook, and a **keeper** liquidates troves that fall below 110 %.
+It also shows the **redemption queue**: which troves MUSD redemptions will hit first and how much MUSD sits ahead of any given trove. A **watcher** sends alerts to Slack, Discord, Telegram or any signed JSON webhook, and a **keeper** liquidates troves that fall below 110 %. The on-chain **[TroveGuard](#troveguard)** contract, live on Mezo Testnet, lets a borrower pre-authorise BTC top-ups that the keeper triggers when their ICR dips.
 
 ![Dashboard](docs/dashboard.png)
 
@@ -84,16 +84,60 @@ When a secret is set, JSON deliveries carry `x-trove-radar-timestamp` and `x-tro
 * `src/analyze.mjs` builds the report, including Stability Pool coverage of liquidatable debt and the health level per borrower.
 * `src/alerts.mjs` and `src/webhook.mjs` handle alert evaluation, change detection, payload formats, signing and delivery.
 * `src/render.mjs` produces Markdown and a self-contained HTML dashboard: no external assets, and the trove lookup runs in the browser over the data embedded in the page.
+* `contracts/TroveGuard.sol` + `src/guard.mjs`: the on-chain top-up guard and its keeper side (targets via `status()`, insert hints via `HintHelpers.getApproxHint` + `SortedTroves.findInsertPosition`, dry-run before send).
 * `src/keeper.mjs` simulates liquidations first and only broadcasts with `--send`. It refuses to send unless the chain ID is 31611 (Mezo Testnet).
 
 ## Tests
-`npm test` runs 22 tests: 17 offline tests and 5 live, read-only tests against Mezo Testnet. The offline tests cover the maths, the redemption queue and simulation, alert diffing, the payload formats, signatures, and webhook delivery and retries against a local HTTP server. The live tests check that:
+`npm test` runs 22 Node tests (TroveGuard's Foundry tests are described under [TroveGuard](#troveguard)): 17 offline tests and 5 live, read-only tests against Mezo Testnet. The offline tests cover the maths, the redemption queue and simulation, alert diffing, the payload formats, signatures, and webhook delivery and retries against a local HTTP server. The live tests check that:
 * our off-chain ICR **equals** on-chain `getCurrentICR` for a random sample of troves
 * the `SortedTroves` tail is among our riskiest troves
 * every trove we flag as liquidatable passes an `eth_call` liquidation, and a healthy trove reverts
 * our redemption order matches an on-chain `SortedTroves` walk, and our NICR equals `getNominalICR`
 
 Use `npm run test:offline` to skip the network tests.
+
+## TroveGuard
+
+`contracts/TroveGuard.sol` tops up an MUSD trove automatically. The borrower parks a BTC reserve in the guard, picks a trigger ICR and stores a few pre-signed `addCollWithSignature` permits. When the trove's ICR falls below the trigger, anyone can call `protect(borrower, upperHint, lowerHint)`. The guard spends one permit, sends the signed amount of BTC into the borrower's own trove through `BorrowerOperationsSignatures`, and pays the caller a small tip from the reserve. The radar's keeper is that caller.
+
+**Live on Mezo Testnet:** [`0x4e5ada5a4c3095727a1259369b98dd31466b0e6d`](https://explorer.test.mezo.org/address/0x4e5ada5a4c3095727a1259369b98dd31466b0e6d) (source verified on the explorer).
+
+| Step | Transaction |
+| --- | --- |
+| Deploy (block 16452547) | [`0x7f8e3f…65be0`](https://explorer.test.mezo.org/tx/0x7f8e3fb51c82caa89c155c87375defe5e95b6b6721b7c50911046ffe34065be0) |
+| Open a demo trove: 0.03 BTC, 1,800 MUSD | [`0x77d00a…71dbf`](https://explorer.test.mezo.org/tx/0x77d00aa4a4045eb8289634567ab4926162fdebd9aa4227d57e803cd9e5371dbf) |
+| `configure`: trigger 130 %, reserve 0.00603 BTC | [`0xbca92e…879f0`](https://explorer.test.mezo.org/tx/0xbca92e1b51ec515d24b2ea42175fcbddf830f1fe4e36c9e1b16d75fa59c879f0) |
+| `storePermits`: 3 rungs of 0.002 BTC, nonces 0–2 | [`0xab286c…03e`](https://explorer.test.mezo.org/tx/0xab286c9cc8faca4aaf83520d0f6b05fc609d8d7a3f2f8016a863ae70f64eb03e) |
+| `protect` #1 by the keeper: ICR 117.92 % → 125.78 % | [`0xf639ce…06dae`](https://explorer.test.mezo.org/tx/0xf639ce7656afabdac74bc6345bb83f4eeed60c8ca76a23c98a8a22c7d3206dae) |
+| `protect` #2 by the keeper: ICR 125.82 % → 133.68 % | [`0x9f66e2…859da`](https://explorer.test.mezo.org/tx/0x9f66e2b0b6d537b1f5bd5d4ca759a740647482e759517c74f5af6222930859da) |
+
+After the second top-up the trove sat above its trigger, so the keeper stopped. One rung is still stored for the next dip.
+
+### Why permits come in a ladder
+`BorrowerOperationsSignatures` gives each borrower a single nonce counter. Every `*WithSignature` call uses it: add or withdraw collateral, repay, refinance, close. The signed digest is `AddColl(assetAmount, borrower, nonce, deadline)` with the **current** nonce, and a successful call increments it. Three things follow:
+
+* **A signature works exactly once.** After a top-up the same signature no longer verifies, so a single stored signature would protect you only once.
+* **Signatures work strictly in order.** A signature for nonce *n + 1* is useless until nonce *n* has been spent.
+* **The signature does not bind the caller or the hints**, only the amount, borrower, nonce and deadline. Anyone who sees it can submit it, but `msg.value` has to equal the signed amount and the BTC can only land in the borrower's trove. The worst a stranger can do is gift the borrower collateral and use up one nonce.
+
+That is why TroveGuard stores permits **keyed by nonce** (`storePermits(firstNonce, permits[])`). `protect` always looks up the borrower's current `getNonce()`. Suppose a nonce is spent somewhere else, for example by the borrower's own `withdrawCollWithSignature` or by someone front-running a stored signature. That rung is simply skipped, and the next one lines up on its own; the tests cover this. Each permit carries its own amount and deadline, because both are part of the signature.
+
+### Guarantees
+* BTC leaves the guard only into the borrower's own trove (through MUSD's signature check), as the tip to whoever called `protect`, or back to the borrower through `withdraw` or `cancel`. No arbitrary calls or calldata.
+* `protect` reverts unless the trove is active and `getCurrentICR(borrower, fetchPrice())` is **strictly** below the trigger. It also reverts if no unexpired permit matches the current nonce, if the reserve can't cover the top-up plus tip, or if the ICR did not go up.
+* `cancel` refunds the whole reserve and invalidates every stored permit (each one is tied to a "generation" counter that `cancel` bumps).
+* `protect`, `withdraw` and `cancel` are protected against reentrancy. The trigger has to be between 110 % (MCR) and 1000 %.
+
+### Use it
+```sh
+forge build
+anvil --fork-url https://rpc.test.mezo.org --chain-id 31611 &
+forge test --fork-url http://127.0.0.1:8545     # 9 fork tests
+node src/cli.mjs guard                          # every guarded trove and whether it is protectable
+node src/cli.mjs keeper --protect [--send]      # liquidations + TroveGuard top-ups (dry-run unless --send)
+node scripts/troveguard-live.mjs deploy|setup|protect   # testnet-only deploy and end-to-end demo
+```
+Mezo's price oracle is a chain precompile that anvil can't run. The fork tests therefore mock the oracle that `PriceFeed` wraps (`latestRoundData`), and everything else runs against real forked MUSD contracts. Run without a fork, `forge test` skips the suite. The tests cover the trigger and the exact boundary, top-ups that actually raise ICR on chain, single use and replay (including a direct replay against MUSD), the ladder surviving an external nonce spend, stale nonces, foreign signatures, owner-only withdraw and cancel, an insufficient reserve, an expired permit, an inactive trove and a reentrant keeper.
 
 ## Demo
 `scripts/demo.sh` runs a read-only tour of the CLI. A recording is in `docs/demo/` (asciinema `.cast`, plus a plain-text transcript).

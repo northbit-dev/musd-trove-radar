@@ -18,4 +18,10 @@ export const C = {
   interestRateManager: load('InterestRateManager'),
   stabilityPool: load('StabilityPool'),
   musd: load('MUSD'),
+  borrowerOperations: load('BorrowerOperations'),
+  borrowerOperationsSignatures: load('BorrowerOperationsSignatures'),
+  hintHelpers: load('HintHelpers'),
 };
+
+const guardFile = new URL('TroveGuard.json', here);
+export const GUARD = fs.existsSync(guardFile) ? JSON.parse(fs.readFileSync(guardFile)) : null;

@@ -5,7 +5,7 @@ import { getAddress } from 'viem';
 import { client, fetchSystem, fetchTroves, simulateLiquidation } from './chain.mjs';
 import { analyze, toJSON } from './analyze.mjs';
 import { markdown, html } from './render.mjs';
-import { runKeeper } from './keeper.mjs';
+import { runKeeper, loadAccount, runProtectKeeper, guardTargets } from './keeper.mjs';
 import { fmt } from './math.mjs';
 import { queuePosition, simulateRedemption } from './redemption.mjs';
 import { evaluate, diff, describe } from './alerts.mjs';
@@ -96,6 +96,15 @@ const cmds = {
   async keeper() {
     const { pc, report } = await load();
     await runKeeper(pc, report, { send: flag('send'), max: Number(opt('max', 10)) });
+    if (flag('protect')) await runProtectKeeper(pc, loadAccount(), { send: flag('send') });
+  },
+  async guard() {
+    const pc = client();
+    const rows = await guardTargets(pc);
+    if (!rows.length) { console.log('TroveGuard: no guarded troves'); return; }
+    for (const t of rows) {
+      console.log(t.error ? `${t.borrower}  status() failed: ${t.error}` : `${t.borrower}  ICR ${fmt(t.icr * 100n)} %  trigger ${fmt(t.trigger * 100n)} %  nonce ${t.nonce}  next top-up ${fmt(t.amount, 6)} BTC  reserve ${fmt(t.reserve, 6)} BTC${t.protectable ? '  → PROTECTABLE' : ''}`);
+    }
   },
 };
 

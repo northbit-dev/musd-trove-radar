@@ -2,5 +2,29 @@
   {
     "label": "Keeper liquidation of 0xDA04…AaAa (ICR 106.85 %, 2,212.59 MUSD debt), block 16452016",
     "hash": "0x6d0f1cdb2407fdc572443802dcf48c0451b713d31afb5c40aa4123a5a2a2d68e"
+  },
+  {
+    "label": "TroveGuard deployed at 0x4e5ada5a4c3095727a1259369b98dd31466b0e6d, block 16452547",
+    "hash": "0x7f8e3fb51c82caa89c155c87375defe5e95b6b6721b7c50911046ffe34065be0"
+  },
+  {
+    "label": "Demo trove opened for 0x20b854C2fCB761DF9f18b27cCBfBeD7276070D7B",
+    "hash": "0x77d00aa4a4045eb8289634567ab4926162fdebd9aa4227d57e803cd9e5371dbf"
+  },
+  {
+    "label": "TroveGuard configure (trigger + BTC reserve)",
+    "hash": "0xbca92e1b51ec515d24b2ea42175fcbddf830f1fe4e36c9e1b16d75fa59c879f0"
+  },
+  {
+    "label": "TroveGuard storePermits (3 pre-signed AddColl rungs from nonce 0)",
+    "hash": "0xab286c9cc8faca4aaf83520d0f6b05fc609d8d7a3f2f8016a863ae70f64eb03e"
+  },
+  {
+    "label": "TroveGuard protect: 0x20b854C2fCB761DF9f18b27cCBfBeD7276070D7B topped up at ICR 117.93 % (nonce 0)",
+    "hash": "0xf639ce7656afabdac74bc6345bb83f4eeed60c8ca76a23c98a8a22c7d3206dae"
+  },
+  {
+    "label": "TroveGuard protect: 0x20b854C2fCB761DF9f18b27cCBfBeD7276070D7B topped up at ICR 125.80 % (nonce 1)",
+    "hash": "0x9f66e2b0b6d537b1f5bd5d4ca759a740647482e759517c74f5af6222930859da"
   }
 ]
