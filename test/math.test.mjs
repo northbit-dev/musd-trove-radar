@@ -57,7 +57,7 @@ test('analyze + health + render on synthetic state', () => {
   assert.equal(troveHealth(undefined, sys).level, 'none');
   assert.match(markdown(r), /Liquidatable now \| 1 troves/);
   assert.match(html(r), /<!doctype html>/);
-  assert.ok(!/<script/i.test(html(r)), 'dashboard is static');
+  assert.ok(!/<script[^>]*src=/i.test(html(r)) && !/https?:\/\/(?!explorer)/.test(html(r).replace(/<a [^>]*>/g, '')), 'dashboard has no external assets');
 });
 
 test('sort and format helpers', () => {

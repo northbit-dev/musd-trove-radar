@@ -1,10 +1,12 @@
+import path from 'node:path';
+import os from 'node:os';
 import fs from 'node:fs';
 import { createWalletClient, http, formatEther } from 'viem';
 import { privateKeyToAccount } from 'viem/accounts';
 import { mezoTestnet, simulateLiquidation } from './chain.mjs';
 import { NETWORK, C } from './config.mjs';
 
-export const DEFAULT_KEY_FILE = process.env.MEZO_KEY_FILE || `${process.env.HOME}/.secrets/mezo-testnet.key`;
+export const DEFAULT_KEY_FILE = process.env.MEZO_KEY_FILE || path.join(os.homedir(), '.secrets', 'mezo-testnet.key');
 
 /** Load a TESTNET key from a 0600 file. Never logs the key. */
 export function loadAccount(file = DEFAULT_KEY_FILE) {

@@ -1,16 +1,21 @@
 #!/usr/bin/env node
 import fs from 'node:fs';
+import path from 'node:path';
 import { getAddress } from 'viem';
 import { client, fetchSystem, fetchTroves, simulateLiquidation } from './chain.mjs';
-import { analyze, troveHealth, toJSON } from './analyze.mjs';
+import { analyze, toJSON } from './analyze.mjs';
 import { markdown, html } from './render.mjs';
 import { runKeeper } from './keeper.mjs';
 import { fmt } from './math.mjs';
+import { queuePosition, simulateRedemption } from './redemption.mjs';
+import { evaluate, diff, describe } from './alerts.mjs';
+import { formatPayload, sendWebhook } from './webhook.mjs';
 
 const [cmd = 'snapshot', ...rest] = process.argv.slice(2);
 const flag = (n) => rest.includes(`--${n}`);
 const opt = (n, d) => { const i = rest.indexOf(`--${n}`); return i >= 0 ? rest[i + 1] : d; };
-const out = opt('out', new URL('../out/', import.meta.url).pathname);
+const out = opt('out', new URL('../out', import.meta.url).pathname);
+const shown = (p) => path.relative(process.cwd(), p) || '.';
 
 async function load() {
   const pc = client();
@@ -30,8 +35,10 @@ const cmds = {
   async dashboard() {
     const { report } = await load();
     fs.mkdirSync(out, { recursive: true });
-    fs.writeFileSync(`${out}/index.html`, html(report));
-    console.log(`wrote ${out}/index.html (block ${report.block})`);
+    const proofsFile = new URL('../proofs.json', import.meta.url);
+    const proofs = fs.existsSync(proofsFile) ? JSON.parse(fs.readFileSync(proofsFile, 'utf8')) : [];
+    fs.writeFileSync(`${out}/index.html`, html(report, { proofs, repoUrl: process.env.TROVE_RADAR_REPO_URL }));
+    console.log(`wrote ${shown(out)}/index.html (block ${report.block})`);
   },
   async liquidatable() {
     const { pc, report } = await load();
@@ -43,20 +50,48 @@ const cmds = {
   },
   async watch() {
     const who = rest.filter((x) => /^0x[0-9a-fA-F]{40}$/.test(x)).map((a) => getAddress(a));
+    if (!who.length) { console.log('usage: watch 0xAddr [0xAddr…] [--interval 60] [--warn 1.5] [--crit 1.2] [--redeem-warn 50000] [--webhook URL --format json|slack|discord|telegram --chat-id ID] [--state file]'); return; }
     const every = Number(opt('interval', 0));
+    const webhook = opt('webhook', process.env.TROVE_RADAR_WEBHOOK);
+    const format = opt('format', 'json');
+    const stateFile = opt('state', null);
+    let prev = stateFile && fs.existsSync(stateFile) ? JSON.parse(fs.readFileSync(stateFile, 'utf8')) : null;
     const tick = async () => {
-      const { sys, troves } = await load();
-      const map = new Map(troves.map((t) => [t.owner, t]));
-      for (const a of who.length ? who : []) {
-        const h = troveHealth(map.get(a), sys, { warn: Number(opt('warn', 1.5)), crit: Number(opt('crit', 1.2)) });
-        const line = h.level === 'none' ? `${a}: no active trove` :
-          `${a}: ${h.level.toUpperCase()} ICR ${(h.icr * 100).toFixed(1)} % · liq at $${fmt(h.liqPrice, 0)} (${(h.dropToLiq * 100).toFixed(1)} % away)`;
-        console.log(`[block ${sys.blockNumber}] ${line}`);
+      const { report } = await load();
+      const cur = evaluate(report, who, { warn: Number(opt('warn', 1.5)), crit: Number(opt('crit', 1.2)), redeemWarn: Number(opt('redeem-warn', 50_000)) });
+      for (const b of cur.borrowers) console.log(`[block ${report.block}] ${describe({ kind: 'borrower', ...b })}`);
+      const { alerts, next } = diff(prev, cur);
+      prev = next;
+      if (stateFile) fs.writeFileSync(stateFile, JSON.stringify(next));
+      if (!alerts.length) { console.log(`[block ${report.block}] no changes to alert on`); return; }
+      console.log(`[block ${report.block}] ${alerts.length} alert(s)`);
+      if (webhook) {
+        const body = formatPayload(alerts, { format, block: String(report.block), chatId: opt('chat-id', process.env.TROVE_RADAR_CHAT_ID), dashboardUrl: process.env.TROVE_RADAR_DASHBOARD_URL });
+        const res = await sendWebhook(webhook, body, { secret: process.env.TROVE_RADAR_WEBHOOK_SECRET });
+        console.log(`webhook (${format}): ${res.ok ? 'delivered' : 'failed'} status=${res.status} attempts=${res.attempts}`);
       }
-      if (!who.length) console.log('usage: watch 0xAddr [0xAddr…] [--interval 60] [--warn 1.5] [--crit 1.2]');
     };
     await tick();
     if (every > 0) setInterval(() => tick().catch((e) => console.error(e.shortMessage || e.message)), every * 1000);
+  },
+  async redemption() {
+    const { report } = await load();
+    const r = report.redemption;
+    console.log(`Redemptions ${r.enabled ? 'possible (TCR ≥ 110 %)' : 'BLOCKED (TCR < 110 %)'} · ${fmt(r.totalRedeemable, 0)} MUSD redeemable · ${r.skippedBelowMcr} trove(s) below MCR skipped`);
+    const who = rest.find((x) => /^0x[0-9a-fA-F]{40}$/.test(x));
+    if (who) {
+      const q = queuePosition({ queue: report.queue }, who);
+      console.log(q ? `${getAddress(who)}: #${q.position} of ${report.queue.length} · ${fmt(q.ahead, 0)} MUSD ahead · fully redeemed after ${fmt(q.through, 0)} MUSD` : `${getAddress(who)}: not in the redemption queue`);
+    }
+    const amount = opt('amount', null);
+    if (amount) {
+      const sim = simulateRedemption(report.queue, BigInt(Math.round(Number(amount))) * 10n ** 18n, report.price);
+      console.log(`Redeeming ${fmt(BigInt(Math.round(Number(amount))) * 10n ** 18n, 0)} MUSD would hit ${sim.hits.length} trove(s), closing ${sim.hits.filter((h) => h.closes).length}${sim.unfilled ? `; ${fmt(sim.unfilled, 0)} MUSD unfilled` : ''}`);
+      for (const h of sim.hits.slice(0, Number(opt('top', 15)))) console.log(`  ${h.owner}  ${fmt(h.musd)} MUSD → ${fmt(h.coll, 6)} BTC${h.closes ? '  (closed)' : ''}`);
+      return;
+    }
+    console.log('#   owner                                               ICR   debt (MUSD)   MUSD ahead');
+    for (const t of r.front) console.log(`${String(t.position).padEnd(3)} ${t.owner}  ${fmt(t.icr * 100n).padStart(8)} %  ${fmt(t.debt).padStart(12)}  ${fmt(t.ahead, 0).padStart(10)}`);
   },
   async keeper() {
     const { pc, report } = await load();
