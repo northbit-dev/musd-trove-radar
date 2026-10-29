@@ -1,0 +1,15 @@
+{
+  "name": "musd-trove-radar",
+  "version": "0.1.0",
+  "description": "Liquidation & recovery-mode radar plus keeper for MUSD troves on Mezo testnet",
+  "type": "module",
+  "license": "GPL-3.0-or-later",
+  "bin": { "trove-radar": "src/cli.mjs" },
+  "scripts": {
+    "test": "node --test test/*.test.mjs",
+    "test:offline": "OFFLINE=1 node --test test/*.test.mjs",
+    "snapshot": "node src/cli.mjs snapshot",
+    "dashboard": "node src/cli.mjs dashboard"
+  },
+  "dependencies": { "viem": "^2" }
+}
