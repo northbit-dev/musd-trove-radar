@@ -30,7 +30,7 @@ Mezo's `eth_estimateGas` leaves out the EIP-7623 calldata floor, which is small 
 ## Quick start (Node 20+)
 
 ```bash
-git clone <repo> && cd musd-trove-radar && npm ci
+git clone --recursive https://github.com/northbit-dev/musd-trove-radar && cd musd-trove-radar && npm ci
 node src/cli.mjs keeper --protect            # one dry-run round: what would be sent, and why not
 node src/cli.mjs keeper --loop --interval 60  # dry-run daemon, JSON logs on stdout
 ```

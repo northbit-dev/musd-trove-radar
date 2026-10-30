@@ -6,3 +6,5 @@ forge-out/
 forge-cache/
 broadcast/*/31337/
 cache/
+issues/
+wave2-plan.md

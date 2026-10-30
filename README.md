@@ -210,7 +210,8 @@ In JS, `signLadder(account, { firstNonce, deadline, rungs: [{ kind, amount }, â€
 
 ### Use it
 ```sh
-git submodule update --init                    # forge-std (or clone with --recursive)
+git clone --recursive https://github.com/northbit-dev/musd-trove-radar && cd musd-trove-radar
+git submodule update --init                    # forge-std, if you cloned without --recursive
 forge build
 anvil --fork-url https://rpc.test.mezo.org --chain-id 31611 &
 forge test --fork-url http://127.0.0.1:8545     # 14 fork tests, 3 fuzz tests, 3 invariants

@@ -1,12 +1,12 @@
 # Public links
 
-Fill in the two GitHub links after the first push; everything else is live on Mezo Testnet (chain 31611).
+The GitHub links go live with the first push; everything else is live on Mezo Testnet (chain 31611).
 
 | What | Link |
 |---|---|
-| Repository | `https://github.com/<owner>/musd-trove-radar` |
-| Live dashboard (GitHub Pages, rebuilt every 15 min) | `https://<owner>.github.io/musd-trove-radar/` |
-| TroveGuard web app | `https://<owner>.github.io/musd-trove-radar/guard.html` |
+| Repository | `https://github.com/northbit-dev/musd-trove-radar` |
+| Live dashboard (GitHub Pages, rebuilt every 15 min) | `https://northbit-dev.github.io/musd-trove-radar/` |
+| TroveGuard web app | `https://northbit-dev.github.io/musd-trove-radar/guard.html` |
 | Release v0.2.0 notes | [CHANGELOG.md](../CHANGELOG.md#v020-30-october-wave-2) |
 
 ## Contracts
