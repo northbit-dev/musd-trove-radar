@@ -9,24 +9,50 @@ export function guardAt(address = process.env.TROVE_GUARD || GUARD?.address) {
   return { address, abi: GUARD.abi };
 }
 
-/** EIP-712 AddColl permits for BorrowerOperationsSignatures, one per consecutive nonce. */
-export async function signAddCollLadder(account, { firstNonce, rungs, amount, deadline }) {
+/** TroveGuard.Kind: the BorrowerOperationsSignatures call a permit authorises. */
+export const KIND = { AddColl: 0, RepayMUSD: 1 };
+export const kindName = (k) => (Number(k) === KIND.RepayMUSD ? 'RepayMUSD' : 'AddColl');
+
+const TYPES = {
+  AddColl: [
+    { name: 'assetAmount', type: 'uint256' }, { name: 'borrower', type: 'address' },
+    { name: 'nonce', type: 'uint256' }, { name: 'deadline', type: 'uint256' },
+  ],
+  RepayMUSD: [
+    { name: 'amount', type: 'uint256' }, { name: 'borrower', type: 'address' },
+    { name: 'nonce', type: 'uint256' }, { name: 'deadline', type: 'uint256' },
+  ],
+};
+
+/** The EIP-712 request a borrower signs for one rung; also used by the browser UI. */
+export function permitTypedData({ kind, amount, borrower, nonce, deadline, chainId = NETWORK.chainId, verifyingContract = BOS.address }) {
+  const name = kindName(kind);
+  const message = name === 'AddColl'
+    ? { assetAmount: amount, borrower, nonce, deadline }
+    : { amount, borrower, nonce, deadline };
+  return {
+    domain: { name: 'BorrowerOperationsSignatures', version: '1', chainId, verifyingContract },
+    types: { [name]: TYPES[name] }, primaryType: name, message,
+  };
+}
+
+/**
+ * Sign a ladder of permits for consecutive nonces. `rungs` is a list of { kind, amount };
+ * AddColl amounts are BTC wei, RepayMUSD amounts are MUSD wei. Both kinds share the borrower's nonce.
+ */
+export async function signLadder(account, { firstNonce, rungs, deadline }) {
   const permits = [];
-  for (let i = 0; i < rungs; i++) {
-    const signature = await account.signTypedData({
-      domain: { name: 'BorrowerOperationsSignatures', version: '1', chainId: NETWORK.chainId, verifyingContract: BOS.address },
-      types: { AddColl: [
-        { name: 'assetAmount', type: 'uint256' },
-        { name: 'borrower', type: 'address' },
-        { name: 'nonce', type: 'uint256' },
-        { name: 'deadline', type: 'uint256' },
-      ] },
-      primaryType: 'AddColl',
-      message: { assetAmount: amount, borrower: account.address, nonce: firstNonce + BigInt(i), deadline },
-    });
-    permits.push({ amount, deadline, signature });
+  for (let i = 0; i < rungs.length; i++) {
+    const { kind, amount } = rungs[i];
+    const signature = await account.signTypedData(permitTypedData({ kind, amount, borrower: account.address, nonce: firstNonce + BigInt(i), deadline }));
+    permits.push({ kind, amount, deadline, signature });
   }
   return permits;
+}
+
+/** v1 helper: `rungs` identical AddColl permits. */
+export async function signAddCollLadder(account, { firstNonce, rungs, amount, deadline }) {
+  return signLadder(account, { firstNonce, deadline, rungs: Array.from({ length: rungs }, () => ({ kind: KIND.AddColl, amount })) });
 }
 
 /** Every guarded borrower with its on-chain status(); `protectable` ones are keeper targets. */
@@ -37,22 +63,43 @@ export async function guardTargets(pc, guard = guardAt()) {
   const res = await pc.multicall({ allowFailure: true, contracts: borrowers.map((b) => ({ ...guard, functionName: 'status', args: [b] })) });
   return borrowers.map((borrower, i) => {
     if (res[i].status !== 'success') return { borrower, protectable: false, error: res[i].error?.shortMessage };
-    const [protectable, icr, trigger, nonce, amount, reserve] = res[i].result;
-    return { borrower, protectable, icr, trigger, nonce, amount, reserve };
+    return parseStatus(borrower, res[i].result);
   });
 }
 
-/** Insert hints for the trove's position after adding `amount` collateral. */
-export async function protectHints(pc, borrower, amount) {
-  const [nicr, coll, count] = await Promise.all([
-    pc.readContract({ address: TM.address, abi: TM.abi, functionName: 'getNominalICR', args: [borrower] }),
-    pc.readContract({ address: TM.address, abi: TM.abi, functionName: 'getTroveColl', args: [borrower] }),
-    pc.readContract({ address: TM.address, abi: TM.abi, functionName: 'getTroveOwnersCount' }),
+/** status() of v2 returns kind and the MUSD reserve; the v1 deployment returns six fields and only knows AddColl. */
+export function parseStatus(borrower, result) {
+  if (result.length === 6) {
+    const [protectable, icr, trigger, nonce, amount, reserve] = result;
+    return { borrower, protectable, icr, trigger, nonce, kind: KIND.AddColl, amount, reserve, musdReserve: 0n };
+  }
+  const [protectable, icr, trigger, nonce, kind, amount, reserve, musdReserve] = result;
+  return { borrower, protectable, icr, trigger, nonce, kind: Number(kind), amount, reserve, musdReserve };
+}
+
+/** NICR = coll / principal, so a top-up scales it by coll and a repayment by principal. */
+export function nicrAfter({ nicr, coll, principal }, kind, amount) {
+  if (Number(kind) === KIND.RepayMUSD) return principal > amount ? (nicr * principal) / (principal - amount) : nicr;
+  return coll ? (nicr * (coll + amount)) / coll : nicr;
+}
+
+/** Insert hints for the trove's position after the next permit (`kind`, `amount`). */
+export async function protectHints(pc, borrower, amount, kind = KIND.AddColl) {
+  const read = (functionName, args) => pc.readContract({ address: TM.address, abi: TM.abi, functionName, args });
+  const [nicr, coll, principal, count] = await Promise.all([
+    read('getNominalICR', [borrower]), read('getTroveColl', [borrower]), read('getTrovePrincipal', [borrower]), read('getTroveOwnersCount'),
   ]);
-  const newNicr = coll ? (nicr * (coll + amount)) / coll : nicr;
+  const newNicr = nicrAfter({ nicr, coll, principal }, kind, amount);
   const trials = BigInt(Math.ceil(15 * Math.sqrt(Number(count) || 1)));
   const [approx] = await pc.readContract({ address: C.hintHelpers.address, abi: C.hintHelpers.abi, functionName: 'getApproxHint', args: [newNicr, trials, 42n] });
   return pc.readContract({ address: C.sortedTroves.address, abi: C.sortedTroves.abi, functionName: 'findInsertPosition', args: [newNicr, approx, approx] });
+}
+
+/** "AddColl 0.002 BTC" or "RepayMUSD 100 MUSD". */
+export function describeRung({ kind, amount }) {
+  const repay = Number(kind) === KIND.RepayMUSD;
+  const v = Number(amount) / 1e18;
+  return `${kindName(kind)} ${repay ? v.toLocaleString('en-US', { maximumFractionDigits: 2 }) : v.toFixed(6)} ${repay ? 'MUSD' : 'BTC'}`;
 }
 
 // Mezo's public RPC is load-balanced; a send right after a state change can hit a lagging node.
@@ -69,7 +116,7 @@ export async function runProtectKeeper(pc, account, { send = false, guard = guar
   const from = account?.address || '0x000000000000000000000000000000000000dEaD';
   const out = [];
   for (const t of targets) {
-    const [upper, lower] = await protectHints(pc, t.borrower, t.amount);
+    const [upper, lower] = await protectHints(pc, t.borrower, t.amount, t.kind);
     let request;
     try {
       ({ request } = await pc.simulateContract({ account: account || from, ...guard, functionName: 'protect', args: [t.borrower, upper, lower] }));
@@ -78,7 +125,7 @@ export async function runProtectKeeper(pc, account, { send = false, guard = guar
       out.push({ ...t, ok: false });
       continue;
     }
-    log(`protect ${t.borrower}: ICR ${(Number(t.icr) / 1e16).toFixed(2)} % < ${(Number(t.trigger) / 1e16).toFixed(2)} %, nonce ${t.nonce}, dry-run OK`);
+    log(`protect ${t.borrower}: ICR ${(Number(t.icr) / 1e16).toFixed(2)} % < ${(Number(t.trigger) / 1e16).toFixed(2)} %, nonce ${t.nonce}, ${describeRung(t)}, dry-run OK`);
     if (!send) { out.push({ ...t, ok: true, tx: null }); continue; }
     if (!account) throw new Error('no testnet key loaded');
     if ((await pc.getChainId()) !== NETWORK.chainId) throw new Error('refusing to send: not Mezo Testnet');

@@ -118,7 +118,7 @@ When a secret is set, JSON deliveries carry `x-trove-radar-timestamp` and `x-tro
 * `src/keeper.mjs` simulates liquidations first and only broadcasts with `--send`. It refuses to send unless the chain ID is 31611 (Mezo Testnet).
 
 ## Tests
-`npm test` runs 30 Node tests (TroveGuard's Foundry tests are described under [TroveGuard](#troveguard)): 24 offline tests and 6 live, read-only tests against Mezo Testnet. The offline tests cover the maths, the redemption queue and simulation, alert diffing, event alerts and their deduplication, the payload formats, signatures, webhook delivery and retries against a local HTTP server, and event decoding against real Mezo Testnet logs (`test/fixtures/`), window halving, retries and the incremental cache. The live tests check that:
+`npm test` runs 32 Node tests (TroveGuard's Foundry tests are described under [TroveGuard](#troveguard)): 26 offline tests and 6 live, read-only tests against Mezo Testnet. The offline tests cover the maths, the redemption queue and simulation, alert diffing, event alerts and their deduplication, the payload formats, signatures, webhook delivery and retries against a local HTTP server, and TroveGuard ladder signing against the Solidity typehashes, event decoding against real Mezo Testnet logs (`test/fixtures/`), window halving, retries and the incremental cache. The live tests check that:
 * our off-chain ICR **equals** on-chain `getCurrentICR` for a random sample of troves
 * the `SortedTroves` tail is among our riskiest troves
 * every trove we flag as liquidatable passes an `eth_call` liquidation, and a healthy trove reverts
@@ -130,6 +130,8 @@ Use `npm run test:offline` to skip the network tests.
 ## TroveGuard
 
 `contracts/TroveGuard.sol` tops up an MUSD trove automatically. The borrower parks a BTC reserve in the guard, picks a trigger ICR and stores a few pre-signed `addCollWithSignature` permits. When the trove's ICR falls below the trigger, anyone can call `protect(borrower, upperHint, lowerHint)`. The guard spends one permit, sends the signed amount of BTC into the borrower's own trove through `BorrowerOperationsSignatures`, and pays the caller a small tip from the reserve. The radar's keeper is that caller.
+
+The current source is **v2**, which adds a [repay-MUSD mode](#repay-musd-mode-v2): a rung can also pay down debt from an MUSD reserve. The deployment below is v1 (BTC top-ups only).
 
 **Live on Mezo Testnet:** [`0x4e5ada5a4c3095727a1259369b98dd31466b0e6d`](https://explorer.test.mezo.org/address/0x4e5ada5a4c3095727a1259369b98dd31466b0e6d) (source verified on the explorer).
 
@@ -153,22 +155,34 @@ After the second top-up the trove sat above its trigger, so the keeper stopped. 
 
 That is why TroveGuard stores permits **keyed by nonce** (`storePermits(firstNonce, permits[])`). `protect` always looks up the borrower's current `getNonce()`. Suppose a nonce is spent somewhere else, for example by the borrower's own `withdrawCollWithSignature` or by someone front-running a stored signature. That rung is simply skipped, and the next one lines up on its own; the tests cover this. Each permit carries its own amount and deadline, because both are part of the signature.
 
+### Repay-MUSD mode (v2)
+Many borrowers would rather keep MUSD on the side and pay down debt when ICR drops. Repaying also moves the trove back in the redemption queue. Each permit now has a `kind`:
+
+| `kind` | Signed digest | `protect` spends |
+| --- | --- | --- |
+| `AddColl` (0) | `AddColl(assetAmount, borrower, nonce, deadline)` | `amount` BTC from the BTC reserve, via `addCollWithSignature` |
+| `RepayMUSD` (1) | `RepayMUSD(amount, borrower, nonce, deadline)` | `amount` MUSD from the MUSD reserve, via `repayMUSDWithSignature` |
+
+Both kinds use the same nonce counter, so a single ladder can mix them, for example top up, then repay, then top up. The borrower funds the MUSD reserve with `approve` + `depositMUSD(amount)` and can take it back with `withdrawMUSD`. MUSD burns the repaid amount from the guard, the caller of `BorrowerOperationsSignatures`, so the guard never holds an allowance on anything. The keeper tip is always paid in BTC from the BTC reserve. `status(borrower)` returns the kind and amount of the next rung, and both reserves. `node src/cli.mjs guard` prints them, for example `next RepayMUSD 100 MUSD  reserve 0.002000 BTC + 300.00 MUSD`. A `RepayMUSD` kind on an `AddColl` signature, or the other way round, fails MUSD's signature check.
+
+In JS, `signLadder(account, { firstNonce, deadline, rungs: [{ kind, amount }, …] })` in `src/guard.mjs` signs a mixed ladder, and `permitTypedData()` builds the EIP-712 request for a browser wallet.
+
 ### Guarantees
-* BTC leaves the guard only into the borrower's own trove (through MUSD's signature check), as the tip to whoever called `protect`, or back to the borrower through `withdraw` or `cancel`. No arbitrary calls or calldata.
-* `protect` reverts unless the trove is active and `getCurrentICR(borrower, fetchPrice())` is **strictly** below the trigger. It also reverts if no unexpired permit matches the current nonce, if the reserve can't cover the top-up plus tip, or if the ICR did not go up.
-* `cancel` refunds the whole reserve and invalidates every stored permit (each one is tied to a "generation" counter that `cancel` bumps).
-* `protect`, `withdraw` and `cancel` are protected against reentrancy. The trigger has to be between 110 % (MCR) and 1000 %.
+* BTC and MUSD leave the guard only into the borrower's own trove (through MUSD's signature check), as the BTC tip to whoever called `protect`, or back to the borrower through `withdraw`, `withdrawMUSD` or `cancel`. No arbitrary calls or calldata.
+* `protect` reverts unless the trove is active and `getCurrentICR(borrower, fetchPrice())` is **strictly** below the trigger. It also reverts if no unexpired permit matches the current nonce, if the BTC reserve can't cover the top-up plus tip, if the MUSD reserve can't cover a repayment, or if the ICR did not go up.
+* `cancel` refunds both reserves and invalidates every stored permit (each one is tied to a "generation" counter that `cancel` bumps).
+* `protect`, `withdraw`, `withdrawMUSD`, `depositMUSD` and `cancel` are protected against reentrancy. The trigger has to be between 110 % (MCR) and 1000 %.
 
 ### Use it
 ```sh
 forge build
 anvil --fork-url https://rpc.test.mezo.org --chain-id 31611 &
-forge test --fork-url http://127.0.0.1:8545     # 9 fork tests
+forge test --fork-url http://127.0.0.1:8545     # 14 fork tests
 node src/cli.mjs guard                          # every guarded trove and whether it is protectable
 node src/cli.mjs keeper --protect [--send]      # liquidations + TroveGuard top-ups (dry-run unless --send)
 node scripts/troveguard-live.mjs deploy|setup|protect   # testnet-only deploy and end-to-end demo
 ```
-Mezo's price oracle is a chain precompile that anvil can't run. The fork tests therefore mock the oracle that `PriceFeed` wraps (`latestRoundData`), and everything else runs against real forked MUSD contracts. Run without a fork, `forge test` skips the suite. The tests cover the trigger and the exact boundary, top-ups that actually raise ICR on chain, single use and replay (including a direct replay against MUSD), the ladder surviving an external nonce spend, stale nonces, foreign signatures, owner-only withdraw and cancel, an insufficient reserve, an expired permit, an inactive trove and a reentrant keeper.
+Mezo's price oracle is a chain precompile that anvil can't run. The fork tests therefore mock the oracle that `PriceFeed` wraps (`latestRoundData`), and everything else runs against real forked MUSD contracts. Run without a fork, `forge test` skips the suite. The tests cover the trigger and the exact boundary, top-ups that actually raise ICR on chain, single use and replay (including a direct replay against MUSD), the ladder surviving an external nonce spend, stale nonces, foreign signatures, owner-only withdraw and cancel, an insufficient reserve, an expired permit, an inactive trove and a reentrant keeper. For repay mode they cover a repayment that lowers debt and raises ICR, a mixed AddColl → RepayMUSD → AddColl ladder, an insufficient MUSD reserve, a swapped kind, and `cancel` refunding MUSD.
 
 ## Demo
 `scripts/demo.sh` runs a read-only tour of the CLI. A recording is in `docs/demo/` (asciinema `.cast`, plus a plain-text transcript).
