@@ -46,7 +46,7 @@ node src/cli.mjs redemption 0xAddr --amount 25000   # your queue position + what
 node src/cli.mjs history [--blocks 100000] [--json]   # liquidations and redemptions from TroveManager events
 node src/cli.mjs liquidatable --simulate   # list ICR<MCR troves, dry-run liquidate() via eth_call
 node src/cli.mjs watch 0xAddr [0xAddr…] --interval 60 --warn 1.5 --crit 1.2 --redeem-warn 50000 \
-  [--webhook URL --format json|slack|discord|telegram --chat-id ID] [--state file]
+  [--lookback 1000] [--webhook URL --format json|slack|discord|telegram --chat-id ID] [--state file]
 node src/cli.mjs keeper              # dry-run batchLiquidateTroves on all liquidatable troves
 node src/cli.mjs keeper --send --max 5   # broadcast (Mezo Testnet only; key from MEZO_KEY_FILE, must be chmod 600)
 ```
@@ -83,8 +83,19 @@ The first line above is the keeper's own liquidation. The dashboard shows the la
 * the trove enters the front of the redemption queue (`--redeem-warn` MUSD or less ahead of it)
 * the system enters or leaves Recovery Mode
 * the number of liquidatable troves changes
+* a watched trove is **redeemed against** (TroveManager `Redemption`, with the trove's debt and collateral afterwards)
+* a watched trove is **liquidated** (`TroveLiquidated`)
+* a liquidation is **redistributed** (`LTermsUpdated` in the same tx, because the Stability Pool could not absorb it) while a watched trove is open, since part of that debt lands on it
 
-Alert state is kept in `--state` (JSON), so restarts do not cause repeat alerts.
+Event alerts link the transaction on the explorer. Each tick reads TroveManager logs from the last block it checked up to the current one. The first tick looks back `--lookback` blocks (default 1,000, about 70 minutes).
+
+Alert state is kept in `--state` (JSON), so restarts do not cause repeat alerts. Event alerts are deduplicated per type, transaction and address.
+
+```
+[block 16458171] 6 alert(s)
+  🟠 0x4799…Cf08: REDEEMED at block 16359628 · debt now 2,000.01 MUSD, collateral 0.027725 BTC (redemption of 3.16 MUSD in total) · https://explorer.test.mezo.org/tx/0x0929…
+  🔴 0xDA04…AaAa: LIQUIDATED at block 16452016 · 2,201.98 MUSD debt, 0.029938 BTC collateral · https://explorer.test.mezo.org/tx/0x6d0f…
+```
 
 | `--format` | Body |
 |---|---|
@@ -107,7 +118,7 @@ When a secret is set, JSON deliveries carry `x-trove-radar-timestamp` and `x-tro
 * `src/keeper.mjs` simulates liquidations first and only broadcasts with `--send`. It refuses to send unless the chain ID is 31611 (Mezo Testnet).
 
 ## Tests
-`npm test` runs 29 Node tests (TroveGuard's Foundry tests are described under [TroveGuard](#troveguard)): 23 offline tests and 6 live, read-only tests against Mezo Testnet. The offline tests cover the maths, the redemption queue and simulation, alert diffing, the payload formats, signatures, webhook delivery and retries against a local HTTP server, and event decoding against real Mezo Testnet logs (`test/fixtures/`), window halving, retries and the incremental cache. The live tests check that:
+`npm test` runs 30 Node tests (TroveGuard's Foundry tests are described under [TroveGuard](#troveguard)): 24 offline tests and 6 live, read-only tests against Mezo Testnet. The offline tests cover the maths, the redemption queue and simulation, alert diffing, event alerts and their deduplication, the payload formats, signatures, webhook delivery and retries against a local HTTP server, and event decoding against real Mezo Testnet logs (`test/fixtures/`), window halving, retries and the incremental cache. The live tests check that:
 * our off-chain ICR **equals** on-chain `getCurrentICR` for a random sample of troves
 * the `SortedTroves` tail is among our riskiest troves
 * every trove we flag as liquidatable passes an `eth_call` liquidation, and a healthy trove reverts

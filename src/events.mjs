@@ -4,7 +4,7 @@ import { decodeEventLog, getAbiItem } from 'viem';
 import { C } from './config.mjs';
 
 const TM = C.troveManager;
-const NAMES = ['Liquidation', 'TroveLiquidated', 'Redemption', 'TroveUpdated'];
+const NAMES = ['Liquidation', 'TroveLiquidated', 'Redemption', 'TroveUpdated', 'LTermsUpdated'];
 export const EVENT_ABI = NAMES.map((name) => getAbiItem({ abi: TM.abi, name }));
 export const OP = { applyPendingRewards: 0, liquidate: 1, redeemCollateral: 2 };
 export const MAX_WINDOW = 10_000n;
@@ -12,7 +12,7 @@ const BIG = new Set(['debt', 'coll', 'collGas', 'gasComp', 'attempted', 'musd', 
 
 export const DEFAULT_CACHE = new URL('../out/events.json', import.meta.url).pathname;
 
-/** Decode raw TroveManager logs; anything that is not one of our four events is dropped. */
+/** Decode raw TroveManager logs; anything that is not one of our events is dropped. */
 export function decodeLogs(logs) {
   const out = [];
   for (const l of logs) {
@@ -45,6 +45,7 @@ export function groupEvents(decoded) {
           type: 'liquidation', block, tx,
           debt: a._liquidatedPrincipal + a._liquidatedInterest, coll: a._liquidatedColl,
           collGas: a._collGasCompensation, gasComp: a._gasCompensation,
+          redistributed: list.some((x) => x.name === 'LTermsUpdated'),
           troves: list.filter((x) => x.name === 'TroveLiquidated').map((x) => ({ borrower: x.args._borrower, debt: x.args._debt, coll: x.args._coll })),
         });
       } else if (d.name === 'Redemption') {

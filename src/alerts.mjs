@@ -3,6 +3,7 @@
 import { troveHealth } from './analyze.mjs';
 import { queuePosition } from './redemption.mjs';
 import { fmt } from './math.mjs';
+import { NETWORK } from './config.mjs';
 
 const LEVEL_RANK = { none: 0, ok: 1, warning: 2, critical: 3, LIQUIDATABLE: 4 };
 
@@ -62,6 +63,49 @@ export function diff(prev, cur) {
   return { alerts, next };
 }
 
+const SEEN_CAP = 1000;
+
+/**
+ * Alerts for liquidation and redemption events that touch watched addresses.
+ * `seen` holds `${type}:${tx}:${address}` keys from earlier ticks, so a restart never repeats an alert.
+ * Redistribution alerts go only to watched borrowers with an active trove (`active`), since only they absorb the debt.
+ */
+export function eventAlerts(events, addresses, { seen = [], active = addresses } = {}) {
+  const known = new Set(seen);
+  const watched = new Map(addresses.map((a) => [a.toLowerCase(), a]));
+  const open = new Set(active.map((a) => a.toLowerCase()));
+  const alerts = [];
+  const push = (a) => {
+    const key = `${a.type}:${a.tx}:${a.address.toLowerCase()}`;
+    if (known.has(key)) return;
+    known.add(key);
+    alerts.push(a);
+  };
+  for (const e of events) {
+    const base = { kind: 'event', tx: e.tx, block: e.block, timestamp: e.timestamp };
+    if (e.type === 'redemption') {
+      for (const t of e.troves) {
+        const address = watched.get(t.borrower.toLowerCase());
+        if (address) push({ ...base, type: 'redeemed', severity: t.closed ? 'high' : 'medium', address, musd: e.musd, btc: e.btc, debtAfter: t.debtAfter, collAfter: t.collAfter, closed: t.closed });
+      }
+      continue;
+    }
+    const hit = new Set();
+    for (const t of e.troves) {
+      const address = watched.get(t.borrower.toLowerCase());
+      if (!address) continue;
+      hit.add(address.toLowerCase());
+      push({ ...base, type: 'liquidated', severity: 'high', address, debt: t.debt, coll: t.coll });
+    }
+    if (!e.redistributed) continue;
+    for (const [lc, address] of watched) {
+      if (hit.has(lc) || !open.has(lc)) continue;
+      push({ ...base, type: 'redistribution', severity: 'medium', address, liquidated: e.troves.length, debt: e.debt, coll: e.coll });
+    }
+  }
+  return { alerts, seen: [...known].slice(-SEEN_CAP) };
+}
+
 const short = (a) => `${a.slice(0, 6)}…${a.slice(-4)}`;
 
 /** One human-readable line per alert. */
@@ -69,6 +113,12 @@ export function describe(a) {
   if (a.kind === 'system') return a.recoveryMode
     ? `🚨 Mezo entered Recovery Mode (TCR ${fmt(a.tcr * 100n, 1)} %). Troves below 150 % can now be liquidated.`
     : `✅ Mezo left Recovery Mode (TCR ${fmt(a.tcr * 100n, 1)} %).`;
+  if (a.kind === 'event') {
+    const link = `${NETWORK.explorer}/tx/${a.tx}`;
+    if (a.type === 'redeemed') return `${a.closed ? '🔴' : '🟠'} ${short(a.address)}: REDEEMED at block ${a.block}${a.closed ? ', trove closed' : ''} · debt now ${fmt(a.debtAfter)} MUSD, collateral ${fmt(a.collAfter, 6)} BTC (redemption of ${fmt(a.musd)} MUSD in total) · ${link}`;
+    if (a.type === 'liquidated') return `🔴 ${short(a.address)}: LIQUIDATED at block ${a.block} · ${fmt(a.debt)} MUSD debt, ${fmt(a.coll, 6)} BTC collateral · ${link}`;
+    return `🟡 ${short(a.address)}: REDISTRIBUTION at block ${a.block} · ${a.liquidated} trove(s) liquidated with ${fmt(a.debt)} MUSD debt that the Stability Pool could not fully absorb; part of it now sits on your trove · ${link}`;
+  }
   if (a.kind === 'keeper') return `🔧 ${a.liquidatable} trove(s) are liquidatable right now.`;
   const icon = { LIQUIDATABLE: '🔴', critical: '🟠', warning: '🟡', ok: '🟢', none: '⚪' }[a.level];
   const parts = [`${icon} ${short(a.address)}: ${a.level.toUpperCase()}`];

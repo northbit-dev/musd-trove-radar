@@ -8,7 +8,7 @@ import { markdown, html } from './render.mjs';
 import { runKeeper, loadAccount, runProtectKeeper, guardTargets } from './keeper.mjs';
 import { fmt } from './math.mjs';
 import { queuePosition, simulateRedemption } from './redemption.mjs';
-import { evaluate, diff, describe } from './alerts.mjs';
+import { evaluate, diff, describe, eventAlerts } from './alerts.mjs';
 import { formatPayload, sendWebhook } from './webhook.mjs';
 import { syncEvents, summarize } from './events.mjs';
 import { describeEvent } from './render.mjs';
@@ -65,7 +65,7 @@ const cmds = {
   },
   async watch() {
     const who = rest.filter((x) => /^0x[0-9a-fA-F]{40}$/.test(x)).map((a) => getAddress(a));
-    if (!who.length) { console.log('usage: watch 0xAddr [0xAddr…] [--interval 60] [--warn 1.5] [--crit 1.2] [--redeem-warn 50000] [--webhook URL --format json|slack|discord|telegram --chat-id ID] [--state file]'); return; }
+    if (!who.length) { console.log('usage: watch 0xAddr [0xAddr…] [--interval 60] [--warn 1.5] [--crit 1.2] [--redeem-warn 50000] [--lookback 1000] [--webhook URL --format json|slack|discord|telegram --chat-id ID] [--state file]'); return; }
     const every = Number(opt('interval', 0));
     const webhook = opt('webhook', process.env.TROVE_RADAR_WEBHOOK);
     const format = opt('format', 'json');
@@ -76,10 +76,26 @@ const cmds = {
       const cur = evaluate(report, who, { warn: Number(opt('warn', 1.5)), crit: Number(opt('crit', 1.2)), redeemWarn: Number(opt('redeem-warn', 50_000)) });
       for (const b of cur.borrowers) console.log(`[block ${report.block}] ${describe({ kind: 'borrower', ...b })}`);
       const { alerts, next } = diff(prev, cur);
+      const from = prev?.eventsBlock !== undefined ? BigInt(prev.eventsBlock) + 1n : report.block - BigInt(opt('lookback', 1000)) + 1n;
+      let seen = prev?.seen ?? [];
+      let eventsBlock = prev?.eventsBlock;
+      if (from <= report.block) {
+        try {
+          const h = await syncEvents(client(), { fromBlock: from, toBlock: report.block, file: `${out}/events.json` });
+          const active = cur.borrowers.filter((b) => b.level !== 'none').map((b) => b.address);
+          const ev = eventAlerts(h.events, who, { seen, active });
+          alerts.push(...ev.alerts);
+          seen = ev.seen;
+          eventsBlock = String(report.block);
+        } catch (e) { console.error(`[block ${report.block}] events unavailable: ${e.shortMessage || e.message}`); }
+      }
+      next.eventsBlock = eventsBlock;
+      next.seen = seen;
       prev = next;
       if (stateFile) fs.writeFileSync(stateFile, JSON.stringify(next));
       if (!alerts.length) { console.log(`[block ${report.block}] no changes to alert on`); return; }
       console.log(`[block ${report.block}] ${alerts.length} alert(s)`);
+      for (const a of alerts.filter((x) => x.kind === 'event')) console.log(`  ${describe(a)}`);
       if (webhook) {
         const body = formatPayload(alerts, { format, block: String(report.block), chatId: opt('chat-id', process.env.TROVE_RADAR_CHAT_ID), dashboardUrl: process.env.TROVE_RADAR_DASHBOARD_URL });
         const res = await sendWebhook(webhook, body, { secret: process.env.TROVE_RADAR_WEBHOOK_SECRET });

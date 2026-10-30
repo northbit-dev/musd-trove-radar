@@ -87,3 +87,32 @@ test('sendWebhook posts signed JSON to a local receiver and retries on 5xx', asy
   } finally { srv.close(); }
   await assert.rejects(sendWebhook('file:///etc/passwd', {}), /http/);
 });
+
+test('eventAlerts: redeemed, liquidated and redistribution, deduplicated across ticks', async () => {
+  const { decodeLogs, groupEvents } = await import('../src/events.mjs');
+  const { eventAlerts } = await import('../src/alerts.mjs');
+  const real = groupEvents(decodeLogs((await import('./fixtures/trovemanager-logs.json', { with: { type: 'json' } })).default));
+  const liquidated = '0xDA04759E54728B6636Fe48F7c9795c7B609bAaAa', redeemed = '0x4799e9fB361Fb6a85473bB08dA00A4012E02Cf08';
+  const redistribution = { ...real.find((e) => e.type === 'liquidation'), tx: '0x' + '1'.repeat(64), redistributed: true };
+  const events = [...real, redistribution];
+
+  const first = eventAlerts(events, [liquidated, redeemed, A], { active: [redeemed, A] });
+  const byType = (t) => first.alerts.filter((a) => a.type === t).map((a) => a.address);
+  assert.deepEqual(byType('liquidated'), [liquidated, liquidated]);
+  assert.deepEqual(byType('redeemed'), [redeemed]);
+  assert.deepEqual(byType('redistribution').sort(), [redeemed, A].sort());
+
+  const again = eventAlerts(events, [liquidated, redeemed, A], { seen: first.seen, active: [redeemed, A] });
+  assert.equal(again.alerts.length, 0);
+  assert.equal(again.seen.length, first.seen.length);
+
+  const none = eventAlerts(real, [B]);
+  assert.equal(none.alerts.length, 0);
+
+  for (const format of ['json', 'slack', 'discord', 'telegram']) {
+    const body = JSON.stringify(formatPayload(first.alerts, { format, chatId: '1', block: '16452016' }));
+    for (const t of ['LIQUIDATED', 'REDEEMED', 'REDISTRIBUTION']) assert.ok(body.includes(t), `${format} has ${t}`);
+    assert.ok(body.includes(`explorer.test.mezo.org/tx/${real[0].tx}`), `${format} links the tx`);
+  }
+  assert.match(describe(first.alerts.find((a) => a.type === 'redeemed')), /REDEEMED at block \d+ · debt now/);
+});
