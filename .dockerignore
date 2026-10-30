@@ -1,0 +1,6 @@
+# Allowlist: the image only needs the runtime code, so keys, caches and notes can never leak into it.
+*
+!package.json
+!package-lock.json
+!src/**
+!LICENSE

@@ -27,7 +27,7 @@ The keeper has liquidated a real trove on Mezo Testnet (chain ID 31611):
 | Gas used | 433,977 |
 | Result | Trove status 3 (closed by liquidation); the keeper received the 200 MUSD gas compensation plus the collateral bonus |
 
-The keeper first ran `liquidate()` as an `eth_call` and broadcast only after the simulation succeeded. The same transaction is listed on the dashboard (`proofs.json`).
+The keeper first ran `liquidate()` as an `eth_call` and broadcast only after the simulation succeeded. A second liquidation came from the daemon (`keeper --loop --min-profit 215 --send`, [`0xb4b1ed…a280`](https://explorer.test.mezo.org/tx/0xb4b1ed7b85dc19eda5f56ff42465364111afda64361c834d637b2b1d8cb7a280)). It liquidated the only trove whose reward cleared the minimum, about 220.80 MUSD, skipped three that paid about 211 MUSD, and recovered on its own from an RPC error in its first round. To run your own keeper, with or without Docker, see [docs/run-a-keeper.md](docs/run-a-keeper.md). The same transaction is listed on the dashboard (`proofs.json`).
 
 ## Snapshot from Mezo Testnet (block 16452079, 2026-10-29)
 - 354 active troves, TCR 283.3 %; Recovery Mode would trigger at BTC $41,764 (a 47.1 % drop)
@@ -50,6 +50,7 @@ node src/cli.mjs watch 0xAddr [0xAddr…] --interval 60 --warn 1.5 --crit 1.2 --
   [--lookback 1000] [--webhook URL --format json|slack|discord|telegram --chat-id ID] [--state file]
 node src/cli.mjs keeper              # dry-run batchLiquidateTroves on all liquidatable troves
 node src/cli.mjs keeper --send --max 5   # broadcast (Mezo Testnet only; key from MEZO_KEY_FILE, must be chmod 600)
+node src/cli.mjs keeper --loop --interval 60 --min-profit 5 [--send]   # daemon: liquidations + TroveGuard protect, JSON logs
 ```
 Set `MEZO_RPC` to override the RPC (default `https://rpc.test.mezo.org`).
 
@@ -126,10 +127,10 @@ When a secret is set, JSON deliveries carry `x-trove-radar-timestamp` and `x-tro
 * `src/render.mjs` produces Markdown and the HTML dashboard: no external assets, the trove lookup runs over data embedded in the page, and only the Stability Pool depositor lookup calls the RPC. `src/history.mjs` keeps `history.json` and the per-day event buckets, and `src/charts.mjs` draws the inline SVG charts.
 * `contracts/TroveGuard.sol` + `src/guard.mjs`: the on-chain top-up guard and its keeper side (targets via `status()`, insert hints via `HintHelpers.getApproxHint` + `SortedTroves.findInsertPosition`, dry-run before send).
 * `src/web/guard-app.mjs` is the browser wallet app for TroveGuard. `src/guard-page.mjs` bundles it with esbuild into `out/guard.html` + `out/guard.js`, and `src/permits.mjs` holds the EIP-712 and ladder code shared with the CLI.
-* `src/keeper.mjs` simulates liquidations first and only broadcasts with `--send`. It refuses to send unless the chain ID is 31611 (Mezo Testnet).
+* `src/keeper.mjs` dry-runs each liquidatable trove, and `src/profit.mjs` values its reward (200 MUSD + 0.5 % of collateral, or the TroveGuard tip) against gas. It only broadcasts with `--send` and refuses to send unless the chain ID is 31611 (Mezo Testnet). `src/daemon.mjs` is the `--loop` with exponential backoff, and `src/log.mjs` writes the JSON log lines. See [Run your own keeper](docs/run-a-keeper.md) for Docker and the log format.
 
 ## Tests
-`npm test` runs 41 Node tests (TroveGuard's Foundry tests are described under [TroveGuard](#troveguard)): 35 offline tests and 6 live, read-only tests against Mezo Testnet. The offline tests cover the maths, the redemption queue and simulation, alert diffing, event alerts and their deduplication, the payload formats, signatures, webhook delivery and retries against a local HTTP server, and TroveGuard ladder signing against the Solidity typehashes, event decoding against real Mezo Testnet logs (`test/fixtures/`), window halving, retries and the incremental cache, plus the browser guard page (ladder and reserve maths, no remote scripts or key material in `guard.html`/`guard.js`), and the dashboard history, charts, Stability Pool gain maths and embedded guard status. The live tests check that:
+`npm test` runs 47 Node tests (TroveGuard's Foundry tests are described under [TroveGuard](#troveguard)): 41 offline tests and 6 live, read-only tests against Mezo Testnet. The offline tests cover the maths, the redemption queue and simulation, alert diffing, event alerts and their deduplication, the payload formats, signatures, webhook delivery and retries against a local HTTP server, and TroveGuard ladder signing against the Solidity typehashes, event decoding against real Mezo Testnet logs (`test/fixtures/`), window halving, retries and the incremental cache, plus the browser guard page (ladder and reserve maths, no remote scripts or key material in `guard.html`/`guard.js`), the dashboard history, charts, Stability Pool gain maths and embedded guard status, and the keeper's profitability check, skip reasons, backoff loop and key loading against a mocked client. The live tests check that:
 * our off-chain ICR **equals** on-chain `getCurrentICR` for a random sample of troves
 * the `SortedTroves` tail is among our riskiest troves
 * every trove we flag as liquidatable passes an `eth_call` liquidation, and a healthy trove reverts

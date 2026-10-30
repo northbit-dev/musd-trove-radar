@@ -1,6 +1,8 @@
 import { createWalletClient, http } from 'viem';
 import { mezoTestnet } from './chain.mjs';
 import { NETWORK, C, GUARD } from './config.mjs';
+import { protectProfit, fmtMusd } from './profit.mjs';
+import { textLog } from './log.mjs';
 import { KIND, permitTypedData as typedData, describeRung, parseStatus } from './permits.mjs';
 
 const TM = C.troveManager, BOS = C.borrowerOperationsSignatures;
@@ -43,7 +45,8 @@ export async function guardTargets(pc, guard = guardAt()) {
   return borrowers.map((borrower, i) => {
     const [st, cfg] = [res[2 * i], res[2 * i + 1]];
     if (st.status !== 'success') return { borrower, protectable: false, error: st.error?.shortMessage };
-    return { ...parseStatus(borrower, st.result), active: cfg.status === 'success' ? Boolean(cfg.result[3]) : null };
+    const ok = cfg.status === 'success';
+    return { ...parseStatus(borrower, st.result), active: ok ? Boolean(cfg.result[3]) : null, tip: ok ? cfg.result[1] : null };
   });
 }
 
@@ -66,37 +69,51 @@ export async function protectHints(pc, borrower, amount, kind = KIND.AddColl) {
 }
 
 // Mezo's public RPC is load-balanced; a send right after a state change can hit a lagging node.
-async function withRetry(fn, tries = 3) {
+export async function withRetry(fn, tries = 3) {
   for (let i = 1; ; i++) {
     try { return await fn(); } catch (e) { if (i >= tries) throw e; await new Promise((r) => setTimeout(r, 4000)); }
   }
 }
 
-/** Protect keeper: dry-runs protect() for each target and only broadcasts with send=true on Mezo Testnet. */
-export async function runProtectKeeper(pc, account, { send = false, guard = guardAt(), log = console.log } = {}) {
+/**
+ * Protect keeper: dry-runs protect() for each target, skips it when the BTC tip does not cover gas plus
+ * minProfit (MUSD wei at `price`), and only broadcasts with send=true on Mezo Testnet.
+ */
+export async function runProtectKeeper(pc, account, { send = false, guard = guardAt(), log = textLog, price, minProfit = 0n } = {}) {
   const targets = (await guardTargets(pc, guard)).filter((t) => t.protectable);
-  if (!targets.length) { log('protect: no guarded trove below its trigger'); return []; }
+  if (!targets.length) { log('protect: no guarded trove below its trigger', { event: 'protect.none' }); return []; }
   const from = account?.address || '0x000000000000000000000000000000000000dEaD';
+  price ??= await pc.readContract({ address: C.priceFeed.address, abi: C.priceFeed.abi, functionName: 'fetchPrice' });
+  const gasPrice = await pc.getGasPrice();
   const out = [];
   for (const t of targets) {
+    const base = { borrower: t.borrower, icr: t.icr, trigger: t.trigger, nonce: t.nonce, rung: describeRung(t) };
     const [upper, lower] = await protectHints(pc, t.borrower, t.amount, t.kind);
-    let request;
+    let request, gas = null;
     try {
       ({ request } = await pc.simulateContract({ account: account || from, ...guard, functionName: 'protect', args: [t.borrower, upper, lower] }));
+      gas = await pc.estimateContractGas(request).catch(() => null);
     } catch (e) {
-      log(`protect ${t.borrower}: dry-run REVERT ${e.shortMessage || e.message}`);
-      out.push({ ...t, ok: false });
+      const reason = `dry-run revert: ${e.shortMessage || e.message}`;
+      log(`protect ${t.borrower}: skipped (${reason})`, { event: 'protect.skip', ...base, reason });
+      out.push({ ...t, ok: false, reason });
       continue;
     }
-    log(`protect ${t.borrower}: ICR ${(Number(t.icr) / 1e16).toFixed(2)} % < ${(Number(t.trigger) / 1e16).toFixed(2)} %, nonce ${t.nonce}, ${describeRung(t)}, dry-run OK`);
-    if (!send) { out.push({ ...t, ok: true, tx: null }); continue; }
+    const p = protectProfit(t, { gas, gasPrice, price, minProfit });
+    if (!p.ok) {
+      log(`protect ${t.borrower}: skipped (${p.reason})`, { event: 'protect.skip', ...base, reward: p.reward, cost: p.cost, reason: p.reason });
+      out.push({ ...t, ok: false, reason: p.reason, ...p });
+      continue;
+    }
+    log(`protect ${t.borrower}: ICR ${(Number(t.icr) / 1e16).toFixed(2)} % < ${(Number(t.trigger) / 1e16).toFixed(2)} %, nonce ${t.nonce}, ${describeRung(t)}, dry-run OK, profit ≈ ${fmtMusd(p.profit)} MUSD`, { event: 'protect.target', ...base, gas, reward: p.reward, cost: p.cost, profit: p.profit });
+    if (!send) { out.push({ ...t, ok: true, tx: null, ...p }); continue; }
     if (!account) throw new Error('no testnet key loaded');
     if ((await pc.getChainId()) !== NETWORK.chainId) throw new Error('refusing to send: not Mezo Testnet');
     const wc = createWalletClient({ account, chain: mezoTestnet, transport: http(NETWORK.rpc) });
     const hash = await withRetry(() => wc.writeContract(request));
     const rc = await pc.waitForTransactionReceipt({ hash });
-    log(`protect ${t.borrower}: tx ${NETWORK.explorer}/tx/${hash} status=${rc.status}`);
-    out.push({ ...t, ok: rc.status === 'success', tx: hash });
+    log(`protect ${t.borrower}: tx ${NETWORK.explorer}/tx/${hash} status=${rc.status}`, { event: 'protect.tx', ...base, tx: hash, status: rc.status });
+    out.push({ ...t, ok: rc.status === 'success', tx: hash, ...p });
   }
   return out;
 }

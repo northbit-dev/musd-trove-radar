@@ -128,5 +128,9 @@
   {
     "label": "TroveGuard v2 cancel (guard.html, browser wallet), second run: refunds 0.00202 BTC + 0 MUSD",
     "hash": "0xb655e186a37d46cba5484822a8c7d6872c1828ee497834fbe482488135a439a3"
+  },
+  {
+    "label": "Keeper daemon (keeper --loop --min-profit 215 --send): liquidates 0x1234…BfE (ICR 107.42 %, 3,873.15 MUSD debt, reward 200 MUSD + 0.000265 BTC ≈ 220.80 MUSD); three troves below the minimum skipped, block 16458853",
+    "hash": "0xb4b1ed7b85dc19eda5f56ff42465364111afda64361c834d637b2b1d8cb7a280"
   }
 ]

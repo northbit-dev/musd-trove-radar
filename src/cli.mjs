@@ -14,7 +14,10 @@ import { evaluate, diff, describe, eventAlerts } from './alerts.mjs';
 import { formatPayload, sendWebhook } from './webhook.mjs';
 import { syncEvents, summarize } from './events.mjs';
 import { historyRow, mergeHistory, readHistory, writeHistory, backfillBlocks } from './history.mjs';
-import { GUARD } from './config.mjs';
+import { GUARD, NETWORK } from './config.mjs';
+import { toWei } from './profit.mjs';
+import { makeLogger } from './log.mjs';
+import { loop } from './daemon.mjs';
 import { describeEvent } from './render.mjs';
 
 const [cmd = 'snapshot', ...rest] = process.argv.slice(2);
@@ -147,9 +150,26 @@ const cmds = {
     for (const t of r.front) console.log(`${String(t.position).padEnd(3)} ${t.owner}  ${fmt(t.icr * 100n).padStart(8)} %  ${fmt(t.debt).padStart(12)}  ${fmt(t.ahead, 0).padStart(10)}`);
   },
   async keeper() {
-    const { pc, report } = await load();
-    await runKeeper(pc, report, { send: flag('send'), max: Number(opt('max', 10)) });
-    if (flag('protect')) await runProtectKeeper(pc, loadAccount(), { send: flag('send') });
+    const send = flag('send'), minProfit = toWei(opt('min-profit', '0'));
+    const protect = flag('loop') ? !flag('no-protect') && Boolean(GUARD) : flag('protect');
+    const log = makeLogger({ json: (opt('log') ?? (flag('loop') ? 'json' : 'text')) === 'json' });
+    const account = loadAccount();
+    if (send) {
+      if (!account) throw new Error('--send needs a testnet key: MEZO_KEY_FILE (chmod 600, outside the repo) or MEZO_PRIVATE_KEY');
+      const chainId = await client().getChainId();
+      if (chainId !== NETWORK.chainId) throw new Error(`refusing to send: chainId ${chainId} is not Mezo Testnet (${NETWORK.chainId})`);
+    }
+    const round = async () => {
+      const { pc, report } = await load();
+      log(`block ${report.block}: ${report.liquidatable.count} liquidatable, TCR ${(Number(report.system.tcr) / 1e16).toFixed(2)} %`, { event: 'round.start', block: report.block, liquidatable: report.liquidatable.count, price: report.price });
+      await runKeeper(pc, report, { send, max: Number(opt('max', 10)), minProfit, log });
+      if (protect) await runProtectKeeper(pc, account, { send, price: report.price, minProfit, log });
+    };
+    if (!flag('loop')) return round();
+    const ctl = new AbortController();
+    for (const sig of ['SIGINT', 'SIGTERM']) process.once(sig, () => { log(`${sig}: stopping after this round`, { event: 'daemon.stop', signal: sig }); ctl.abort(); });
+    log(`keeper daemon: every ${opt('interval', 60)} s, min profit ${opt('min-profit', '0')} MUSD, protect ${protect ? 'on' : 'off'}, ${send ? 'SENDING' : 'dry-run'}`, { event: 'daemon.start', interval: Number(opt('interval', 60)), minProfit, protect, send, sender: account?.address ?? null });
+    await loop(round, { intervalMs: Number(opt('interval', 60)) * 1000, maxBackoffMs: Number(opt('max-backoff', 900)) * 1000, rounds: Number(opt('rounds', Infinity)), signal: ctl.signal, log });
   },
   async guard() {
     const pc = client();
