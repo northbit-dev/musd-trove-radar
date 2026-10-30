@@ -131,20 +131,38 @@ Use `npm run test:offline` to skip the network tests.
 
 `contracts/TroveGuard.sol` tops up an MUSD trove automatically. The borrower parks a BTC reserve in the guard, picks a trigger ICR and stores a few pre-signed `addCollWithSignature` permits. When the trove's ICR falls below the trigger, anyone can call `protect(borrower, upperHint, lowerHint)`. The guard spends one permit, sends the signed amount of BTC into the borrower's own trove through `BorrowerOperationsSignatures`, and pays the caller a small tip from the reserve. The radar's keeper is that caller.
 
-The current source is **v2**, which adds a [repay-MUSD mode](#repay-musd-mode-v2): a rung can also pay down debt from an MUSD reserve. The deployment below is v1 (BTC top-ups only).
+The current deployment is **v2**, which adds a [repay-MUSD mode](#repay-musd-mode-v2): a rung can also pay down debt from an MUSD reserve.
 
-**Live on Mezo Testnet:** [`0x4e5ada5a4c3095727a1259369b98dd31466b0e6d`](https://explorer.test.mezo.org/address/0x4e5ada5a4c3095727a1259369b98dd31466b0e6d) (source verified on the explorer).
+**Live on Mezo Testnet (v2):** [`0xa67c9bbcd4350b24e33e25e2ebd7c80c04409df7`](https://explorer.test.mezo.org/address/0xa67c9bbcd4350b24e33e25e2ebd7c80c04409df7) (source verified on the explorer). The address and ABI are in `src/abi/TroveGuard.json`.
+
+The v2 demo sets the trigger at 200 %, above the trove's real ICR, so `protect` fires against the live oracle with no mocked price. Each `protect` row shows ICR before and after, decoded from the `Protected` event.
+
+| Step | Transaction |
+| --- | --- |
+| Deploy v2 (block 16458355) | [`0x19963d…89638`](https://explorer.test.mezo.org/tx/0x19963d99d3f60d6d69417df39f90509eb59c4bfa3b6ec97a6c91fd0cdfe89638) |
+| Demo trove `refinance` (resets the borrowing capacity) | [`0x6aa644…87f09`](https://explorer.test.mezo.org/tx/0x6aa644daaf68df828a3966219f8bc4c6b8404c18dfc40863d7f81b1121487f09) |
+| Borrow 250 MUSD more so repay rungs keep net debt above 1,800: ICR 133.30 % → 118.51 % | [`0x2a5004…34907`](https://explorer.test.mezo.org/tx/0x2a5004a654408ef8be9d9d7f960cf09c2787206aa11ee05b2d3aaabf92d34907) |
+| `configure`: trigger 200 %, tip 0.00001 BTC, BTC reserve 0.00203 | [`0xa40fbe…948e4`](https://explorer.test.mezo.org/tx/0xa40fbea18c3b7dc7a3ef071b736c8cec1a1d683b1390cf8ca9745f132af948e4) |
+| MUSD `approve` 200 | [`0x28a098…e2fff`](https://explorer.test.mezo.org/tx/0x28a098de13522b512e9815b125c456993bca208b0359c5d1cd1be136d82e2fff) |
+| `depositMUSD`: 200 MUSD reserve | [`0xc785ae…3fab3`](https://explorer.test.mezo.org/tx/0xc785aeac59a4634d9ac22f2d157abc4406ea938e685be286f3103b5c1b73fab3) |
+| `storePermits`: mixed ladder RepayMUSD 100 → AddColl 0.002 BTC → RepayMUSD 100, nonces 2–4 | [`0xea57ec…c787a`](https://explorer.test.mezo.org/tx/0xea57ec20d02a1ba78b771367ad20633fc9d510fd9e935b5440b124e3110c787a) |
+| `protect` #1, RepayMUSD 100 MUSD: ICR 118.45 % → 123.95 % | [`0x950ca9…35aa9`](https://explorer.test.mezo.org/tx/0x950ca982156cc6b3dd1f6e2e69552e00aa19bba9b70765545b3764947d335aa9) |
+| `protect` #2, AddColl 0.002 BTC: ICR 123.88 % → 131.16 % | [`0xc3b2dc…6e554`](https://explorer.test.mezo.org/tx/0xc3b2dcde9ad22ebd2d24c4aabf87d45b5e72759cc4a615565f53c65cdde6e554) |
+| `cancel`: refunds the rest (0.00001 BTC + 100 MUSD), reserves 0, permits invalidated | [`0xbe0776…4123d`](https://explorer.test.mezo.org/tx/0xbe0776ed6b3e74500463dd55620a64941db1fb4b653a1dfdba5ca72d27a4123d) |
+
+Both rungs went through `node src/cli.mjs keeper --protect` as a dry-run first, then `scripts/troveguard-live.mjs protect` sent them.
+
+**v1 (history, BTC top-ups only):** [`0x4e5ada5a4c3095727a1259369b98dd31466b0e6d`](https://explorer.test.mezo.org/address/0x4e5ada5a4c3095727a1259369b98dd31466b0e6d), also verified.
 
 | Step | Transaction |
 | --- | --- |
 | Deploy (block 16452547) | [`0x7f8e3f…65be0`](https://explorer.test.mezo.org/tx/0x7f8e3fb51c82caa89c155c87375defe5e95b6b6721b7c50911046ffe34065be0) |
 | Open a demo trove: 0.03 BTC, 1,800 MUSD | [`0x77d00a…71dbf`](https://explorer.test.mezo.org/tx/0x77d00aa4a4045eb8289634567ab4926162fdebd9aa4227d57e803cd9e5371dbf) |
 | `configure`: trigger 130 %, reserve 0.00603 BTC | [`0xbca92e…879f0`](https://explorer.test.mezo.org/tx/0xbca92e1b51ec515d24b2ea42175fcbddf830f1fe4e36c9e1b16d75fa59c879f0) |
-| `storePermits`: 3 rungs of 0.002 BTC, nonces 0–2 | [`0xab286c…03e`](https://explorer.test.mezo.org/tx/0xab286c9cc8faca4aaf83520d0f6b05fc609d8d7a3f2f8016a863ae70f64eb03e) |
+| `storePermits`: 3 rungs of 0.002 BTC, nonces 0–2 | [`0xab286c…eb03e`](https://explorer.test.mezo.org/tx/0xab286c9cc8faca4aaf83520d0f6b05fc609d8d7a3f2f8016a863ae70f64eb03e) |
 | `protect` #1 by the keeper: ICR 117.92 % → 125.78 % | [`0xf639ce…06dae`](https://explorer.test.mezo.org/tx/0xf639ce7656afabdac74bc6345bb83f4eeed60c8ca76a23c98a8a22c7d3206dae) |
 | `protect` #2 by the keeper: ICR 125.82 % → 133.68 % | [`0x9f66e2…859da`](https://explorer.test.mezo.org/tx/0x9f66e2b0b6d537b1f5bd5d4ca759a740647482e759517c74f5af6222930859da) |
-
-After the second top-up the trove sat above its trigger, so the keeper stopped. One rung is still stored for the next dip.
+| `cancel`: refunded the unused rung (0.00201 BTC) before v2 | [`0xdb5615…591ce`](https://explorer.test.mezo.org/tx/0xdb561517fb7084fed10e80be4a638aab341c33e0dfd2f12e2bf28e2bf13591ce) |
 
 ### Why permits come in a ladder
 `BorrowerOperationsSignatures` gives each borrower a single nonce counter. Every `*WithSignature` call uses it: add or withdraw collateral, repay, refinance, close. The signed digest is `AddColl(assetAmount, borrower, nonce, deadline)` with the **current** nonce, and a successful call increments it. Three things follow:
@@ -180,7 +198,7 @@ anvil --fork-url https://rpc.test.mezo.org --chain-id 31611 &
 forge test --fork-url http://127.0.0.1:8545     # 14 fork tests, 3 fuzz tests, 3 invariants
 node src/cli.mjs guard                          # every guarded trove and whether it is protectable
 node src/cli.mjs keeper --protect [--send]      # liquidations + TroveGuard top-ups (dry-run unless --send)
-node scripts/troveguard-live.mjs deploy|setup|protect   # testnet-only deploy and end-to-end demo
+node scripts/troveguard-live.mjs deploy|setup|protect|cancel   # chain 31611 only: deploy and end-to-end demo
 ```
 Mezo's price oracle is a chain precompile that anvil can't run. The fork tests therefore mock the oracle that `PriceFeed` wraps (`latestRoundData`), and everything else runs against real forked MUSD contracts. Run without a fork, `forge test` skips the suite. The tests cover the trigger and the exact boundary, top-ups that actually raise ICR on chain, single use and replay (including a direct replay against MUSD), the ladder surviving an external nonce spend, stale nonces, foreign signatures, owner-only withdraw and cancel, an insufficient reserve, an expired permit, an inactive trove and a reentrant keeper. For repay mode they cover a repayment that lowers debt and raises ICR, a mixed AddColl → RepayMUSD → AddColl ladder, an insufficient MUSD reserve, a swapped kind, and `cancel` refunding MUSD.
 

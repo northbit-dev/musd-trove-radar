@@ -1,5 +1,3 @@
-import path from 'node:path';
-import os from 'node:os';
 import fs from 'node:fs';
 import { createWalletClient, http, formatEther } from 'viem';
 import { privateKeyToAccount } from 'viem/accounts';
@@ -7,11 +5,9 @@ import { mezoTestnet, simulateLiquidation } from './chain.mjs';
 import { NETWORK, C } from './config.mjs';
 export { runProtectKeeper, guardTargets } from './guard.mjs';
 
-export const DEFAULT_KEY_FILE = process.env.MEZO_KEY_FILE || path.join(os.homedir(), '.secrets', 'mezo-testnet.key');
-
-/** Load a TESTNET key from a 0600 file. Never logs the key. */
-export function loadAccount(file = DEFAULT_KEY_FILE) {
-  if (!fs.existsSync(file)) return null;
+/** Load a TESTNET key from the 0600 file named by MEZO_KEY_FILE. Never logs the key. */
+export function loadAccount(file = process.env.MEZO_KEY_FILE) {
+  if (!file || !fs.existsSync(file)) return null;
   const mode = fs.statSync(file).mode & 0o777;
   if (mode & 0o077) throw new Error(`${file} must be chmod 600 (is ${mode.toString(8)})`);
   const pk = fs.readFileSync(file, 'utf8').trim();
@@ -29,7 +25,7 @@ export async function runKeeper(pc, report, { send = false, max = 10, log = cons
   const sim = await simulateLiquidation(pc, targets, account?.address);
   log(`keeper: ${targets.length} target(s); dry-run ${sim.ok ? `OK (gas ≈ ${sim.gas ?? '?'})` : `REVERT: ${sim.reason}`}`);
   if (!send || !sim.ok) return { targets, sim, tx: null };
-  if (!account) throw new Error(`no testnet key at ${DEFAULT_KEY_FILE}`);
+  if (!account) throw new Error('no testnet key: set MEZO_KEY_FILE to a chmod 600 file');
   const chainId = await pc.getChainId();
   if (chainId !== NETWORK.chainId) throw new Error(`refusing to send: chainId ${chainId} is not Mezo Testnet`);
   const bal = await pc.getBalance({ address: account.address });

@@ -85,7 +85,7 @@ export function html(r, { proofs = [], repoUrl, activity = null } = {}) {
   const st = r.stress.map((x) => `<tr class="${x.recoveryMode ? 'liq' : ''}"><td>−${(x.shock * 100).toFixed(0)} %</td><td>$${fmt(x.price, 0)}</td><td><span class="mini" style="width:${(x.liquidatable / maxS) * 60}px"></span>${x.liquidatable}</td><td>${fmt(x.debt, 0)}</td><td>${pct(x.tcr)}</td><td>${x.recoveryMode ? 'yes' : 'no'}</td></tr>`).join('');
   const rq = q ? q.front.map((t) => `<tr class="${rowCls(t)}"><td>${t.position}</td><td>${owner(t.owner)}</td><td>${pct(t.icr)}</td><td>${fmt(t.debt)}</td><td>${fmt(t.ahead, 0)}</td></tr>`).join('') : '';
   const depth = q ? q.depth.map((d) => `<tr><td>${fmt(d.musd, 0)}</td><td>${d.troves}</td><td>${d.closed}</td></tr>`).join('') : '';
-  const proofList = proofs.length ? `<h2 id="keeper">Keeper on testnet</h2><ul class="proofs">${proofs.map((p) => `<li>${esc(p.label)}: <a href="${NETWORK.explorer}/tx/${esc(p.hash)}"><code>${esc(p.hash.slice(0, 10))}…${esc(p.hash.slice(-6))}</code></a></li>`).join('')}</ul>` : '';
+  const proofList = proofs.length ? `<h2 id="keeper">On-chain proof (Mezo Testnet)</h2><p class="note">Keeper liquidations and every TroveGuard step, with ICR before → after for each <code>protect</code>.</p><ul class="proofs">${proofs.map((p) => `<li>${esc(p.label)}: <a href="${NETWORK.explorer}/tx/${esc(p.hash)}"><code>${esc(p.hash.slice(0, 10))}…${esc(p.hash.slice(-6))}</code></a></li>`).join('')}</ul>` : '';
   const actRows = activity ? activityRows(activity.events) : '';
   const actSection = activity ? `<h2 id="activity">Recent activity</h2><p class="sub">Liquidations and redemptions from TroveManager events, blocks ${activity.fromBlock}–${activity.toBlock}.</p>${actRows ? `<div class="scroll"><table><tr><th>Time</th><th>Event</th><th>Amount</th><th>Troves</th><th>Tx</th></tr>${actRows}</table></div>` : '<p>No liquidations or redemptions in this range.</p>'}` : '';
   const data = JSON.stringify({ block: String(r.block), ts: r.timestamp, price: num(r.price, 2), mcr: 110, ccr: 150, explorer: NETWORK.explorer, t: lookupData(r) }).replace(/</g, '\\u003c');
@@ -110,11 +110,11 @@ tr.liq td{color:var(--red)}tr.risk td{color:var(--amber)}a{color:var(--blue)}
 .lookup button{padding:9px 16px;border-radius:8px;border:0;background:#3b82f6;color:#fff;font-weight:600;cursor:pointer}#res{margin-top:10px}
 .res{background:var(--card);border:1px solid var(--line);border-left:4px solid var(--green);border-radius:8px;padding:12px}.res.warning{border-left-color:var(--amber)}.res.critical,.res.LIQUIDATABLE{border-left-color:var(--red)}
 details{margin-top:10px;color:var(--mute)}summary{cursor:pointer}.two{display:grid;grid-template-columns:1fr 2fr;gap:18px}@media(max-width:800px){.two{grid-template-columns:1fr}.lbl{width:120px}}
-.proofs{padding-left:18px}footer{color:var(--mute);font-size:12px;margin-top:34px;border-top:1px solid var(--line);padding-top:12px}
+.proofs{padding-left:18px}.note{color:var(--mute)}footer{color:var(--mute);font-size:12px;margin-top:34px;border-top:1px solid var(--line);padding-top:12px}
 </style></head><body><main>
 <header><h1>MUSD Trove Radar</h1><span class="pill ${s.recoveryMode ? 'bad' : 'ok'}">${s.recoveryMode ? 'Recovery Mode' : 'Normal mode'}</span><span class="pill">${esc(r.network)}</span></header>
 <div class="sub">Block ${r.block} · ${when(r.timestamp)} <span id="age"></span> · BTC $${fmt(r.price)}</div>
-<nav aria-label="sections"><a href="#check">Check a trove</a><a href="#dist">Distribution</a><a href="#stress">Stress test</a><a href="#redeem">Redemptions</a><a href="#risk">Riskiest</a>${activity ? '<a href="#activity">Activity</a>' : ''}${proofs.length ? '<a href="#keeper">Keeper</a>' : ''}</nav>
+<nav aria-label="sections"><a href="#check">Check a trove</a><a href="#dist">Distribution</a><a href="#stress">Stress test</a><a href="#redeem">Redemptions</a><a href="#risk">Riskiest</a>${activity ? '<a href="#activity">Activity</a>' : ''}${proofs.length ? '<a href="#keeper">Proof</a>' : ''}</nav>
 <h2 id="check">Check a trove</h2>
 <form class="lookup" id="f" role="search"><label for="addr" class="k" style="width:100%">Borrower address</label><input id="addr" name="address" placeholder="0x… borrower address" autocomplete="off" spellcheck="false"><button>Check</button></form>
 <div id="res" aria-live="polite"></div>

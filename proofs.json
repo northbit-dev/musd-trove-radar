@@ -26,5 +26,53 @@
   {
     "label": "TroveGuard protect: 0x20b854C2fCB761DF9f18b27cCBfBeD7276070D7B topped up at ICR 125.80 % (nonce 1)",
     "hash": "0x9f66e2b0b6d537b1f5bd5d4ca759a740647482e759517c74f5af6222930859da"
+  },
+  {
+    "label": "TroveGuard 0x4e5ada5a4c3095727a1259369b98dd31466b0e6d cancel: refunded 0.00201 BTC, reserves now 0, stored permits invalidated",
+    "hash": "0xdb561517fb7084fed10e80be4a638aab341c33e0dfd2f12e2bf28e2bf13591ce"
+  },
+  {
+    "label": "TroveGuard v2 deployed at 0xa67c9bbcd4350b24e33e25e2ebd7c80c04409df7, block 16458355",
+    "hash": "0x19963d99d3f60d6d69417df39f90509eb59c4bfa3b6ec97a6c91fd0cdfe89638"
+  },
+  {
+    "label": "Demo trove refinance: resets maxBorrowingCapacity to the current collateral value / 110 %",
+    "hash": "0x6aa644daaf68df828a3966219f8bc4c6b8404c18dfc40863d7f81b1121487f09"
+  },
+  {
+    "label": "Demo trove borrows 250 MUSD more so repay rungs stay above the 1,800 MUSD minimum: ICR 133.30 % → 118.51 %",
+    "hash": "0x2a5004a654408ef8be9d9d7f960cf09c2787206aa11ee05b2d3aaabf92d34907"
+  },
+  {
+    "label": "TroveGuard v2 configure: trigger 200.00 %, tip 0.00001 BTC, BTC reserve 0.00203",
+    "hash": "0xa40fbea18c3b7dc7a3ef071b736c8cec1a1d683b1390cf8ca9745f132af948e4"
+  },
+  {
+    "label": "MUSD approve 200 for TroveGuard v2",
+    "hash": "0x28a098de13522b512e9815b125c456993bca208b0359c5d1cd1be136d82e2fff"
+  },
+  {
+    "label": "TroveGuard v2 depositMUSD: 200 MUSD reserve",
+    "hash": "0xc785aeac59a4634d9ac22f2d157abc4406ea938e685be286f3103b5c1b73fab3"
+  },
+  {
+    "label": "TroveGuard v2 storePermits: mixed ladder from nonce 2: RepayMUSD 100 MUSD → AddColl 0.002000 BTC → RepayMUSD 100 MUSD",
+    "hash": "0xea57ec20d02a1ba78b771367ad20633fc9d510fd9e935b5440b124e3110c787a"
+  },
+  {
+    "label": "TroveGuard v2 protect (RepayMUSD 100 MUSD, nonce 2): 0x20b854C2fCB761DF9f18b27cCBfBeD7276070D7B ICR 118.45 % → 123.95 %",
+    "hash": "0x950ca982156cc6b3dd1f6e2e69552e00aa19bba9b70765545b3764947d335aa9",
+    "icrBefore": "1184470369181315827",
+    "icrAfter": "1239499927255053564"
+  },
+  {
+    "label": "TroveGuard v2 protect (AddColl 0.002000 BTC, nonce 3): 0x20b854C2fCB761DF9f18b27cCBfBeD7276070D7B ICR 123.88 % → 131.16 %",
+    "hash": "0xc3b2dcde9ad22ebd2d24c4aabf87d45b5e72759cc4a615565f53c65cdde6e554",
+    "icrBefore": "1238751633399096262",
+    "icrAfter": "1311619376540219571"
+  },
+  {
+    "label": "TroveGuard v2 cancel: refunded 0.00001 BTC + 100 MUSD, reserves now 0, stored permits invalidated",
+    "hash": "0xbe0776ed6b3e74500463dd55620a64941db1fb4b653a1dfdba5ca72d27a4123d"
   }
 ]
