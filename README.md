@@ -11,7 +11,7 @@ MUSD is minted against BTC in troves. When a trove's collateral ratio (ICR) drop
 
 Trove Radar reads every active trove straight from the MUSD contracts (TroveManager, SortedTroves, StabilityPool, PriceFeed and InterestRateManager) with multicall, pinned to a single block. It then answers those questions on the command line, as JSON or Markdown, and in a static HTML dashboard.
 
-It also shows the **redemption queue**: which troves MUSD redemptions will hit first and how much MUSD sits ahead of any given trove. A **watcher** sends alerts to Slack, Discord, Telegram or any signed JSON webhook, and a **keeper** liquidates troves that fall below 110 %. The on-chain **[TroveGuard](#troveguard)** contract, live on Mezo Testnet, lets a borrower pre-authorise BTC top-ups that the keeper triggers when their ICR dips.
+It also shows the **redemption queue**: which troves MUSD redemptions will hit first and how much MUSD sits ahead of any given trove. A **watcher** sends alerts to Slack, Discord, Telegram or any signed JSON webhook, and a **keeper** liquidates troves that fall below 110 %. The on-chain **[TroveGuard](#troveguard)** contract, live on Mezo Testnet, lets a borrower pre-authorise BTC top-ups or MUSD repayments that any keeper triggers when their ICR dips, set up from the command line or from a wallet in the browser (`guard.html`). The keeper also runs as a profit-aware daemon or Docker container.
 
 ![Dashboard](docs/dashboard.png)
 
@@ -27,13 +27,14 @@ The keeper has liquidated a real trove on Mezo Testnet (chain ID 31611):
 | Gas used | 433,977 |
 | Result | Trove status 3 (closed by liquidation); the keeper received the 200 MUSD gas compensation plus the collateral bonus |
 
-The keeper first ran `liquidate()` as an `eth_call` and broadcast only after the simulation succeeded. A second liquidation came from the daemon (`keeper --loop --min-profit 215 --send`, [`0xb4b1ed…a280`](https://explorer.test.mezo.org/tx/0xb4b1ed7b85dc19eda5f56ff42465364111afda64361c834d637b2b1d8cb7a280)). It liquidated the only trove whose reward cleared the minimum, about 220.80 MUSD, skipped three that paid about 211 MUSD, and recovered on its own from an RPC error in its first round. To run your own keeper, with or without Docker, see [docs/run-a-keeper.md](docs/run-a-keeper.md). The same transaction is listed on the dashboard (`proofs.json`).
+The keeper first ran `liquidate()` as an `eth_call` and broadcast only after the simulation succeeded. The same transaction is listed on the dashboard (`proofs.json`). A second liquidation came from the daemon (`keeper --loop --min-profit 215 --send`, [`0xb4b1ed…a280`](https://explorer.test.mezo.org/tx/0xb4b1ed7b85dc19eda5f56ff42465364111afda64361c834d637b2b1d8cb7a280)). It liquidated the only trove whose reward cleared the minimum, about 220.80 MUSD, skipped three that paid about 211 MUSD, and recovered on its own from an RPC error in its first round. To run your own keeper, with or without Docker, see [docs/run-a-keeper.md](docs/run-a-keeper.md).
 
-## Snapshot from Mezo Testnet (block 16452079, 2026-10-29)
-- 354 active troves, TCR 283.3 %; Recovery Mode would trigger at BTC $41,764 (a 47.1 % drop)
-- **3 troves are liquidatable right now** (8,070 MUSD of debt), and for each one an `eth_call` liquidation succeeds
-- 133 troves sit between 110 % and 150 % ICR; a 20 % BTC drop would make 86 troves liquidatable
-- 429.2 M MUSD is redeemable; a 25,000 MUSD redemption would hit 13 troves and close 12 of them
+## Snapshot from Mezo Testnet (block 16458901, 2026-10-30)
+- 354 active troves, TCR 281.9 %; Recovery Mode would trigger at BTC $41,765 (a 46.8 % drop)
+- **3 troves are liquidatable right now** (6,254 MUSD of debt), and for each one an `eth_call` liquidation succeeds
+- 136 troves sit between 110 % and 150 % ICR; a 20 % BTC drop would make 91 troves liquidatable
+- 429.3 M MUSD is redeemable; a 25,000 MUSD redemption would hit 13 troves and close 12 of them
+- The Stability Pool holds 86.2 M MUSD, 13,788× the liquidatable debt
 
 ## Commands
 ```bash
@@ -51,6 +52,8 @@ node src/cli.mjs watch 0xAddr [0xAddr…] --interval 60 --warn 1.5 --crit 1.2 --
 node src/cli.mjs keeper              # dry-run batchLiquidateTroves on all liquidatable troves
 node src/cli.mjs keeper --send --max 5   # broadcast (Mezo Testnet only; key from MEZO_KEY_FILE, must be chmod 600)
 node src/cli.mjs keeper --loop --interval 60 --min-profit 5 [--send]   # daemon: liquidations + TroveGuard protect, JSON logs
+node src/cli.mjs guard               # every TroveGuard borrower: trigger, next rung, reserves, protectable?
+node src/cli.mjs keeper --protect    # also dry-run TroveGuard protect for guarded troves below their trigger
 ```
 Set `MEZO_RPC` to override the RPC (default `https://rpc.test.mezo.org`).
 
@@ -118,6 +121,8 @@ Alert state is kept in `--state` (JSON), so restarts do not cause repeat alerts.
 When a secret is set, JSON deliveries carry `x-trove-radar-timestamp` and `x-trove-radar-signature: sha256=<hex>`, an HMAC-SHA256 over `${timestamp}.${body}`. Receivers can verify them with `verify()` from `src/webhook.mjs`, which uses a constant-time compare and a 5-minute window. Deliveries time out after 10 s and are retried up to 3 times on network errors, 429 or 5xx; 4xx errors are not retried. You can also set `TROVE_RADAR_WEBHOOK` and `TROVE_RADAR_DASHBOARD_URL` through the environment.
 
 ## How it works
+[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) has a diagram of how the modules fit together, and [CHANGELOG.md](CHANGELOG.md) lists every release with its commits and transactions.
+
 * `src/chain.mjs` takes the trove owner list from `TroveManager.getTroveFromTroveOwnersArray`, then fetches `getEntireDebtAndColl` and `getTroveInterestRate` per trove in multicall batches at a single block. Pending redistribution rewards are included.
 * `src/math.mjs` holds pure BigInt maths: ICR, liquidation price, Recovery Mode trigger price, ICR buckets and price-shock stress tests.
 * `src/redemption.mjs` builds the redemption queue, the depth table and the redemption simulation.
