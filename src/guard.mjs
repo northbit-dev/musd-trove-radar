@@ -1,6 +1,7 @@
 import { createWalletClient, http } from 'viem';
 import { mezoTestnet } from './chain.mjs';
 import { NETWORK, C, GUARD } from './config.mjs';
+import { KIND, permitTypedData as typedData, describeRung, parseStatus } from './permits.mjs';
 
 const TM = C.troveManager, BOS = C.borrowerOperationsSignatures;
 
@@ -9,32 +10,10 @@ export function guardAt(address = process.env.TROVE_GUARD || GUARD?.address) {
   return { address, abi: GUARD.abi };
 }
 
-/** TroveGuard.Kind: the BorrowerOperationsSignatures call a permit authorises. */
-export const KIND = { AddColl: 0, RepayMUSD: 1 };
-export const kindName = (k) => (Number(k) === KIND.RepayMUSD ? 'RepayMUSD' : 'AddColl');
-
-const TYPES = {
-  AddColl: [
-    { name: 'assetAmount', type: 'uint256' }, { name: 'borrower', type: 'address' },
-    { name: 'nonce', type: 'uint256' }, { name: 'deadline', type: 'uint256' },
-  ],
-  RepayMUSD: [
-    { name: 'amount', type: 'uint256' }, { name: 'borrower', type: 'address' },
-    { name: 'nonce', type: 'uint256' }, { name: 'deadline', type: 'uint256' },
-  ],
-};
+export { KIND, kindName, describeRung, parseStatus } from './permits.mjs';
 
 /** The EIP-712 request a borrower signs for one rung; also used by the browser UI. */
-export function permitTypedData({ kind, amount, borrower, nonce, deadline, chainId = NETWORK.chainId, verifyingContract = BOS.address }) {
-  const name = kindName(kind);
-  const message = name === 'AddColl'
-    ? { assetAmount: amount, borrower, nonce, deadline }
-    : { amount, borrower, nonce, deadline };
-  return {
-    domain: { name: 'BorrowerOperationsSignatures', version: '1', chainId, verifyingContract },
-    types: { [name]: TYPES[name] }, primaryType: name, message,
-  };
-}
+export const permitTypedData = (p) => typedData({ chainId: NETWORK.chainId, verifyingContract: BOS.address, ...p });
 
 /**
  * Sign a ladder of permits for consecutive nonces. `rungs` is a list of { kind, amount };
@@ -67,16 +46,6 @@ export async function guardTargets(pc, guard = guardAt()) {
   });
 }
 
-/** status() of v2 returns kind and the MUSD reserve; the v1 deployment returns six fields and only knows AddColl. */
-export function parseStatus(borrower, result) {
-  if (result.length === 6) {
-    const [protectable, icr, trigger, nonce, amount, reserve] = result;
-    return { borrower, protectable, icr, trigger, nonce, kind: KIND.AddColl, amount, reserve, musdReserve: 0n };
-  }
-  const [protectable, icr, trigger, nonce, kind, amount, reserve, musdReserve] = result;
-  return { borrower, protectable, icr, trigger, nonce, kind: Number(kind), amount, reserve, musdReserve };
-}
-
 /** NICR = coll / principal, so a top-up scales it by coll and a repayment by principal. */
 export function nicrAfter({ nicr, coll, principal }, kind, amount) {
   if (Number(kind) === KIND.RepayMUSD) return principal > amount ? (nicr * principal) / (principal - amount) : nicr;
@@ -93,13 +62,6 @@ export async function protectHints(pc, borrower, amount, kind = KIND.AddColl) {
   const trials = BigInt(Math.ceil(15 * Math.sqrt(Number(count) || 1)));
   const [approx] = await pc.readContract({ address: C.hintHelpers.address, abi: C.hintHelpers.abi, functionName: 'getApproxHint', args: [newNicr, trials, 42n] });
   return pc.readContract({ address: C.sortedTroves.address, abi: C.sortedTroves.abi, functionName: 'findInsertPosition', args: [newNicr, approx, approx] });
-}
-
-/** "AddColl 0.002 BTC" or "RepayMUSD 100 MUSD". */
-export function describeRung({ kind, amount }) {
-  const repay = Number(kind) === KIND.RepayMUSD;
-  const v = Number(amount) / 1e18;
-  return `${kindName(kind)} ${repay ? v.toLocaleString('en-US', { maximumFractionDigits: 2 }) : v.toFixed(6)} ${repay ? 'MUSD' : 'BTC'}`;
 }
 
 // Mezo's public RPC is load-balanced; a send right after a state change can hit a lagging node.

@@ -72,7 +72,7 @@ export function lookupData(r) {
  * One small inline script powers the "check your trove" lookup over embedded data.
  * opts.proofs: [{label, hash}] testnet transactions to link (e.g. keeper liquidations).
  */
-export function html(r, { proofs = [], repoUrl, activity = null } = {}) {
+export function html(r, { proofs = [], repoUrl, activity = null, guardPage = false } = {}) {
   const s = r.system;
   const q = r.redemption;
   const maxB = Math.max(1, ...r.buckets.map((b) => b.count));
@@ -114,7 +114,7 @@ details{margin-top:10px;color:var(--mute)}summary{cursor:pointer}.two{display:gr
 </style></head><body><main>
 <header><h1>MUSD Trove Radar</h1><span class="pill ${s.recoveryMode ? 'bad' : 'ok'}">${s.recoveryMode ? 'Recovery Mode' : 'Normal mode'}</span><span class="pill">${esc(r.network)}</span></header>
 <div class="sub">Block ${r.block} · ${when(r.timestamp)} <span id="age"></span> · BTC $${fmt(r.price)}</div>
-<nav aria-label="sections"><a href="#check">Check a trove</a><a href="#dist">Distribution</a><a href="#stress">Stress test</a><a href="#redeem">Redemptions</a><a href="#risk">Riskiest</a>${activity ? '<a href="#activity">Activity</a>' : ''}${proofs.length ? '<a href="#keeper">Proof</a>' : ''}</nav>
+<nav aria-label="sections"><a href="#check">Check a trove</a><a href="#dist">Distribution</a><a href="#stress">Stress test</a><a href="#redeem">Redemptions</a><a href="#risk">Riskiest</a>${activity ? '<a href="#activity">Activity</a>' : ''}${proofs.length ? '<a href="#keeper">Proof</a>' : ''}${guardPage ? '<a href="guard.html">TroveGuard app</a>' : ''}</nav>
 <h2 id="check">Check a trove</h2>
 <form class="lookup" id="f" role="search"><label for="addr" class="k" style="width:100%">Borrower address</label><input id="addr" name="address" placeholder="0x… borrower address" autocomplete="off" spellcheck="false"><button>Check</button></form>
 <div id="res" aria-live="polite"></div>

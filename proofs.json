@@ -74,5 +74,59 @@
   {
     "label": "TroveGuard v2 cancel: refunded 0.00001 BTC + 100 MUSD, reserves now 0, stored permits invalidated",
     "hash": "0xbe0776ed6b3e74500463dd55620a64941db1fb4b653a1dfdba5ca72d27a4123d"
+  },
+  {
+    "label": "TroveGuard v2 configure (guard.html, browser wallet): trigger 200 %, tip 0.00001 BTC, BTC reserve 0.00203",
+    "hash": "0x0e7db3703011dd040cf551f874076619d19952219d3e3b77cc49d1c234ebf71a"
+  },
+  {
+    "label": "MUSD approve 100 (guard.html, browser wallet)",
+    "hash": "0xd482a4a54d34c03afcf6589cefccbf16147f0d778465203b06b0ef85c236082a"
+  },
+  {
+    "label": "TroveGuard v2 depositMUSD 100 (guard.html, browser wallet)",
+    "hash": "0xb5d1229befbb20c3e46785c99225ef5bdb959119191a1a1c3bdbd8ede0c67a60"
+  },
+  {
+    "label": "TroveGuard v2 storePermits (guard.html, browser wallet): wallet-signed RepayMUSD 100 → AddColl 0.002 from nonce 4",
+    "hash": "0xbad1b0ea3e41841a7de7325cf153d75d8de213df3cde495f3407ecc344620cc5"
+  },
+  {
+    "label": "TroveGuard v2 withdraw 0.00001 BTC (guard.html, browser wallet)",
+    "hash": "0xd1317f52ee9ddafc60c9acce85d91c8d73e00a2af939ec4404b020c88f844665"
+  },
+  {
+    "label": "TroveGuard v2 withdrawMUSD 10 (guard.html, browser wallet)",
+    "hash": "0x93b65ae9bc2677bc742874f065fbdf85931a0141e04a2f5dc38d3ec37f684a33"
+  },
+  {
+    "label": "TroveGuard v2 cancel (guard.html, browser wallet): refunded the rest of both reserves",
+    "hash": "0xccdc462b1fe69e97e6a5bd17ba1d92ff49e5cf676047692618f0a0a8d69f70a9"
+  },
+  {
+    "label": "TroveGuard v2 configure (guard.html, browser wallet), second run",
+    "hash": "0x0d6aa65d99d8d39ce018d8e6a0f997b1b224a4f540b4061290831eb22a52486a"
+  },
+  {
+    "label": "MUSD approve 100 (guard.html, browser wallet), second run",
+    "hash": "0x1f72610651648184d8774e516ef218c45bba4101e14a3ad09eaa823771f6a314"
+  },
+  {
+    "label": "TroveGuard v2 depositMUSD 100 (guard.html, browser wallet), second run",
+    "hash": "0x40dac68b829974c42a178aa2dd5961aaa8637881b108a3074f258476b165b5eb"
+  },
+  {
+    "label": "TroveGuard v2 storePermits (guard.html, browser wallet), second run: wallet-signed RepayMUSD 100 → AddColl 0.002 from nonce 4",
+    "hash": "0xcee937f73f92b54aa01d950aed6b532608c80bef92c0c8a9a8771e780f65f8d6"
+  },
+  {
+    "label": "TroveGuard v2 protect of a wallet-signed permit (RepayMUSD 100 MUSD, nonce 4): 0x20b854C2fCB761DF9f18b27cCBfBeD7276070D7B ICR 131.23 % → 137.62 %",
+    "hash": "0x084a2b4b964c04c722a4d10d32a04d9b8c838d0d9bd4253f7e7edbd47b052212",
+    "icrBefore": "1312258684201822539",
+    "icrAfter": "1376195623679947407"
+  },
+  {
+    "label": "TroveGuard v2 cancel (guard.html, browser wallet), second run: refunds 0.00202 BTC + 0 MUSD",
+    "hash": "0xb655e186a37d46cba5484822a8c7d6872c1828ee497834fbe482488135a439a3"
   }
 ]

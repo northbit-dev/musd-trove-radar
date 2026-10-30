@@ -115,10 +115,11 @@ When a secret is set, JSON deliveries carry `x-trove-radar-timestamp` and `x-tro
 * `src/alerts.mjs` and `src/webhook.mjs` handle alert evaluation, change detection, payload formats, signing and delivery.
 * `src/render.mjs` produces Markdown and a self-contained HTML dashboard: no external assets, and the trove lookup runs in the browser over the data embedded in the page.
 * `contracts/TroveGuard.sol` + `src/guard.mjs`: the on-chain top-up guard and its keeper side (targets via `status()`, insert hints via `HintHelpers.getApproxHint` + `SortedTroves.findInsertPosition`, dry-run before send).
+* `src/web/guard-app.mjs` is the browser wallet app for TroveGuard. `src/guard-page.mjs` bundles it with esbuild into `out/guard.html` + `out/guard.js`, and `src/permits.mjs` holds the EIP-712 and ladder code shared with the CLI.
 * `src/keeper.mjs` simulates liquidations first and only broadcasts with `--send`. It refuses to send unless the chain ID is 31611 (Mezo Testnet).
 
 ## Tests
-`npm test` runs 32 Node tests (TroveGuard's Foundry tests are described under [TroveGuard](#troveguard)): 26 offline tests and 6 live, read-only tests against Mezo Testnet. The offline tests cover the maths, the redemption queue and simulation, alert diffing, event alerts and their deduplication, the payload formats, signatures, webhook delivery and retries against a local HTTP server, and TroveGuard ladder signing against the Solidity typehashes, event decoding against real Mezo Testnet logs (`test/fixtures/`), window halving, retries and the incremental cache. The live tests check that:
+`npm test` runs 34 Node tests (TroveGuard's Foundry tests are described under [TroveGuard](#troveguard)): 28 offline tests and 6 live, read-only tests against Mezo Testnet. The offline tests cover the maths, the redemption queue and simulation, alert diffing, event alerts and their deduplication, the payload formats, signatures, webhook delivery and retries against a local HTTP server, and TroveGuard ladder signing against the Solidity typehashes, event decoding against real Mezo Testnet logs (`test/fixtures/`), window halving, retries and the incremental cache, plus the browser guard page (ladder and reserve maths, no remote scripts or key material in `guard.html`/`guard.js`). The live tests check that:
 * our off-chain ICR **equals** on-chain `getCurrentICR` for a random sample of troves
 * the `SortedTroves` tail is among our riskiest troves
 * every trove we flag as liquidatable passes an `eth_call` liquidation, and a healthy trove reverts
@@ -203,6 +204,21 @@ node scripts/troveguard-live.mjs deploy|setup|protect|cancel   # chain 31611 onl
 Mezo's price oracle is a chain precompile that anvil can't run. The fork tests therefore mock the oracle that `PriceFeed` wraps (`latestRoundData`), and everything else runs against real forked MUSD contracts. Run without a fork, `forge test` skips the suite. The tests cover the trigger and the exact boundary, top-ups that actually raise ICR on chain, single use and replay (including a direct replay against MUSD), the ladder surviving an external nonce spend, stale nonces, foreign signatures, owner-only withdraw and cancel, an insufficient reserve, an expired permit, an inactive trove and a reentrant keeper. For repay mode they cover a repayment that lowers debt and raises ICR, a mixed AddColl → RepayMUSD → AddColl ladder, an insufficient MUSD reserve, a swapped kind, and `cancel` refunding MUSD.
 
 Fuzz tests try arbitrary triggers, tips, kinds, amounts, reserves, deadlines and prices. They check that a successful `protect` spends exactly the rung plus the tip and never more than the reserve, that it pays only the trove and the caller, and that a revert moves nothing. A handler-based invariant suite runs random sequences of deposits, withdrawals, mixed ladders, cancels, price moves and keeper calls across three borrowers. After every step, the reserves must still add up to the guard's BTC and MUSD balances, and no permit may be usable after `cancel`. `.gas-snapshot` records gas per test, and CI (`.github/workflows/contracts.yml`) runs everything against an anvil fork.
+
+### Guard in the browser
+`node src/cli.mjs dashboard` also writes `out/guard.html` and `out/guard.js`, linked from the dashboard nav. Serve `out/` from any static server (`python3 -m http.server -d out`) and open `guard.html` in a browser with an EIP-1193 wallet. Everything happens in your wallet:
+
+* connect, then switch to or add Mezo Testnet (chain 31611) when the wallet is on another chain
+* view a trove: ICR, liquidation price, collateral and debt, guard config, reserves, signature nonce, the next rung and the stored ladder
+* arm the guard (`configure`), add BTC or MUSD to the reserves (MUSD is approved first when needed)
+* sign a ladder: one EIP-712 message per rung on consecutive nonces, then one `storePermits` transaction
+* withdraw BTC or MUSD, or `cancel`
+
+Every transaction is simulated before the wallet is asked to sign, and each one is logged with an explorer link. The page holds no keys and loads nothing from other origins: reads go straight to the Mezo RPC.
+
+![TroveGuard in the browser](docs/guard.png)
+
+`scripts/guard-e2e.mjs` drives the page end to end in headless Chromium against Mezo Testnet. It injects an EIP-1193 test wallet that forwards each request to Node, where the key from `MEZO_KEY_FILE` signs it, so the key never reaches the page. The wallet starts on chain 1 so the chain switch is tested too. `E2E_FLOW` picks the steps (default `configure,depositMUSD,store,withdraw,withdrawMUSD,cancel`; empty for read-only). The UI transactions are listed in `proofs.json`, including a `protect` that executed a rung signed through the page. Limitation: it was tested with this injected wallet only, not with a browser extension such as MetaMask.
 
 ### Security
 Not audited, testnet only. [SECURITY.md](SECURITY.md) has the threat model (leaked signatures, front-running, the oracle, nonce consumption, reentrancy) and lists what the guard does not protect against. [docs/security/static-analysis.md](docs/security/static-analysis.md) has the Slither results: no High or Medium findings, and every remaining finding is justified.

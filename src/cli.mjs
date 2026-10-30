@@ -7,6 +7,7 @@ import { analyze, toJSON } from './analyze.mjs';
 import { markdown, html } from './render.mjs';
 import { runKeeper, loadAccount, runProtectKeeper, guardTargets } from './keeper.mjs';
 import { describeRung } from './guard.mjs';
+import { writeGuardPage } from './guard-page.mjs';
 import { fmt } from './math.mjs';
 import { queuePosition, simulateRedemption } from './redemption.mjs';
 import { evaluate, diff, describe, eventAlerts } from './alerts.mjs';
@@ -44,8 +45,10 @@ const cmds = {
     try {
       activity = await syncEvents(client(), { blocks: BigInt(opt('blocks', 100_000)), toBlock: report.block, file: `${out}/events.json` });
     } catch (e) { console.error(`history unavailable: ${e.shortMessage || e.message}`); }
-    fs.writeFileSync(`${out}/index.html`, html(report, { proofs, repoUrl: process.env.TROVE_RADAR_REPO_URL, activity }));
+    const g = await writeGuardPage(out);
+    fs.writeFileSync(`${out}/index.html`, html(report, { proofs, repoUrl: process.env.TROVE_RADAR_REPO_URL, activity, guardPage: Boolean(g) }));
     console.log(`wrote ${shown(out)}/index.html (block ${report.block})`);
+    if (g) console.log(`wrote ${shown(g)} and guard.js`);
   },
   async history() {
     const pc = client();
