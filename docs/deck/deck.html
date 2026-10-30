@@ -1,0 +1,203 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>MUSD Trove Radar + TroveGuard: pitch deck</title>
+<style>
+@page { size: 1920px 1080px; margin: 0; }
+:root { --bg:#0e1424; --card:#161f36; --line:#27324f; --acc:#f7931a; --acc2:#4fd1a5; --red:#ff6b7d; --tx:#f2f4fa; --mut:#9aa3bd; }
+* { box-sizing: border-box; }
+html, body { margin:0; background:#000; }
+body { font-family: Inter, sans-serif; color: var(--tx); }
+.slide { width:1920px; height:1080px; padding:92px 120px 80px; background:var(--bg); position:relative; overflow:hidden; page-break-after:always; break-after:page; display:flex; flex-direction:column; }
+.slide:last-child { page-break-after:auto; break-after:auto; }
+.slide::before { content:""; position:absolute; right:-280px; top:-280px; width:760px; height:760px; border-radius:50%; background:radial-gradient(circle, rgba(247,147,26,.18), transparent 65%); }
+.kicker { font-size:24px; font-weight:600; letter-spacing:.14em; text-transform:uppercase; color:var(--acc); margin:0 0 18px; }
+h1 { font-size:64px; line-height:1.08; margin:0 0 34px; font-weight:800; letter-spacing:-.02em; max-width:1560px; }
+h2 { font-size:31px; margin:0 0 14px; font-weight:700; }
+p, li { font-size:29px; line-height:1.45; color:#d9deec; }
+p { margin:0 0 18px; }
+ul { margin:0; padding-left:34px; } li { margin-bottom:13px; }
+b { color:#fff; }
+.mut { color:var(--mut); }
+code { font-family:"DejaVu Sans Mono", monospace; font-size:.84em; color:#ffd3a1; }
+.foot { position:absolute; left:120px; right:120px; bottom:38px; display:flex; justify-content:space-between; font-size:20px; color:#6b7592; }
+.grid2 { display:grid; grid-template-columns:1fr 1fr; gap:48px; }
+.grid3 { display:grid; grid-template-columns:repeat(3,1fr); gap:32px; }
+.grid4 { display:grid; grid-template-columns:repeat(4,1fr); gap:26px; }
+.card { background:var(--card); border:1px solid var(--line); border-radius:22px; padding:34px 38px; }
+.card p, .card li { font-size:25px; }
+.card h2 { font-size:29px; }
+.stat .v { font-size:68px; font-weight:800; color:var(--acc); line-height:1.05; margin-bottom:8px; }
+.stat .v.g { color:var(--acc2); } .stat .v.r { color:var(--red); }
+.stat p { font-size:23px; margin:0; color:var(--mut); }
+table { border-collapse:collapse; width:100%; }
+td, th { text-align:left; padding:12px 14px; border-bottom:1px solid var(--line); font-size:23px; }
+th { color:var(--mut); font-weight:600; font-size:19px; text-transform:uppercase; letter-spacing:.06em; }
+td.h { font-family:"DejaVu Sans Mono", monospace; font-size:19px; color:#ffd3a1; }
+.title { justify-content:center; }
+.title h1 { font-size:104px; margin-bottom:22px; }
+.title .tag { font-size:40px; color:#ffd3a1; font-weight:500; margin-bottom:54px; max-width:1500px; line-height:1.3; }
+.links p { font-size:28px; margin:6px 0; }
+.shot { width:100%; border-radius:16px; border:1px solid var(--line); display:block; }
+.flow { display:grid; grid-template-columns:repeat(4,1fr); gap:24px; }
+.step { background:var(--card); border:1px solid var(--line); border-radius:22px; padding:28px 28px; }
+.step .n { width:52px; height:52px; border-radius:50%; background:var(--acc); color:#0e1424; font-weight:800; font-size:27px; display:flex; align-items:center; justify-content:center; margin-bottom:16px; }
+.step h2 { font-size:28px; } .step p { font-size:23px; margin:0; }
+.loss { border-top:6px solid var(--red); }
+</style>
+</head>
+<body>
+
+<!-- 1 -->
+<section class="slide title">
+  <div class="kicker">Mezo · MUSD</div>
+  <h1>MUSD Trove Radar<br>+ TroveGuard</h1>
+  <div class="tag">See liquidations, Recovery Mode and redemptions coming, and let a keeper protect your trove before they hit your BTC.</div>
+  <div class="links">
+    <p>An open-source radar, alert bot, keeper daemon and on-chain trove guard, live on <b>Mezo Testnet</b></p>
+    <p class="mut">github.com/northbit-dev/musd-trove-radar · northbit-dev.github.io/musd-trove-radar</p>
+  </div>
+  <div class="foot"><span>northbit · v0.2.0</span><span>GPL-3.0</span></div>
+</section>
+
+<!-- 2 -->
+<section class="slide">
+  <div class="kicker">The problem</div>
+  <h1>Borrowers can lose their BTC three ways, and nobody shows them where they stand</h1>
+  <div class="grid3" style="margin-bottom:40px">
+    <div class="card loss"><h2>Liquidation</h2><p>Below <b>110 %</b> collateral ratio the trove is closed and the BTC goes to the Stability Pool.</p></div>
+    <div class="card loss"><h2>Recovery Mode</h2><p>If the system ratio falls below <b>150 %</b>, troves under 150 % can be liquidated too.</p></div>
+    <div class="card loss"><h2>Redemptions</h2><p>Anyone can swap MUSD for BTC. It is taken from the <b>lowest-ratio troves first</b>.</p></div>
+  </div>
+  <ul>
+    <li>The Mezo app shows your own trove. It does not show your place among the other 352, or how close the system is to Recovery Mode.</li>
+    <li>A warning only helps if you are awake to act on it. Keepers and Stability Pool depositors have no simple view of what is liquidatable and whether it pays.</li>
+  </ul>
+  <div class="foot"><span>MUSD Trove Radar + TroveGuard</span><span>2</span></div>
+</section>
+
+<!-- 3 -->
+<section class="slide">
+  <div class="kicker">The solution</div>
+  <h1>One tool that reads the MUSD contracts directly, pinned to one block</h1>
+  <div class="grid2" style="grid-template-columns:1.05fr .95fr;align-items:start">
+    <div>
+      <ul>
+        <li><b>Radar and history:</b> every trove's ratio, liquidation price, a BTC price-shock stress test, Stability Pool coverage, and trends over time.</li>
+        <li><b>Redemption queue:</b> your position, the MUSD ahead of you, and what a redemption of X MUSD would hit.</li>
+        <li><b>Alerts:</b> Slack, Discord, Telegram or a signed webhook, on thresholds and when a trove is redeemed or liquidated.</li>
+        <li><b>TroveGuard:</b> pre-signed top-ups or repayments that any keeper can execute below your trigger.</li>
+        <li><b>Keeper daemon:</b> liquidations and guard <code>protect</code> calls, simulated first and sent only when they pay.</li>
+      </ul>
+    </div>
+    <img class="shot" src="radar.png" alt="Dashboard with a trove lookup">
+  </div>
+  <div class="foot"><span>MUSD Trove Radar + TroveGuard</span><span>3</span></div>
+</section>
+
+<!-- 4 -->
+<section class="slide">
+  <div class="kicker">Live on Mezo Testnet · block 16460269 · BTC $78,042</div>
+  <h1>What the radar sees today</h1>
+  <div class="grid4" style="margin-bottom:28px">
+    <div class="card stat"><div class="v">353</div><p>active troves</p></div>
+    <div class="card stat"><div class="v g">280 %</div><p>system collateral ratio</p></div>
+    <div class="card stat"><div class="v">−46.5 %</div><p>BTC drop to Recovery Mode ($41,764)</p></div>
+    <div class="card stat"><div class="v r">3</div><p>liquidatable now, 7,259 MUSD, each checked with <code>eth_call</code></p></div>
+  </div>
+  <div class="grid4">
+    <div class="card stat"><div class="v r">137</div><p>troves between 110 and 150 %</p></div>
+    <div class="card stat"><div class="v r">92</div><p>liquidatable if BTC falls 20 %</p></div>
+    <div class="card stat"><div class="v g">11,877×</div><p>Stability Pool coverage of liquidatable debt</p></div>
+    <div class="card stat"><div class="v">23</div><p>troves a 50,000 MUSD redemption would close</p></div>
+  </div>
+  <div class="foot"><span>MUSD Trove Radar + TroveGuard</span><span>4</span></div>
+</section>
+
+<!-- 5 -->
+<section class="slide">
+  <div class="kicker">TroveGuard v2</div>
+  <h1>Top up or repay automatically, while you sleep</h1>
+  <div class="flow" style="margin-bottom:34px">
+    <div class="step"><div class="n">1</div><h2>Arm</h2><p>Set a trigger ratio and a keeper tip. Park BTC and/or MUSD in the guard as a reserve.</p></div>
+    <div class="step"><div class="n">2</div><h2>Sign a ladder</h2><p>One EIP-712 permit per rung, for consecutive nonces: <code>AddColl</code> (BTC in) or <code>RepayMUSD</code> (debt down).</p></div>
+    <div class="step"><div class="n">3</div><h2>Protect</h2><p>Below the trigger, anyone calls <code>protect()</code>. One rung is spent, funds only enter your own trove, the caller earns the tip.</p></div>
+    <div class="step"><div class="n">4</div><h2>Cancel</h2><p><code>cancel</code> refunds every reserve and invalidates every stored permit.</p></div>
+  </div>
+  <table>
+    <tr><th>Live proof, real oracle, no mocks</th><th>Ratio</th><th>Transaction</th></tr>
+    <tr><td>protect, RepayMUSD</td><td>118.45 % → 123.95 %</td><td class="h">0x950ca982156cc6b3dd1f6e2e69552e00aa19bba9b70765545b3764947d335aa9</td></tr>
+    <tr><td>protect, AddColl</td><td>123.88 % → 131.16 %</td><td class="h">0xc3b2dcde9ad22ebd2d24c4aabf87d45b5e72759cc4a615565f53c65cdde6e554</td></tr>
+    <tr><td>protect of a permit signed in guard.html</td><td>131.23 % → 137.62 %</td><td class="h">0x084a2b4b964c04c722a4d10d32a04d9b8c838d0d9bd4253f7e7edbd47b052212</td></tr>
+  </table>
+  <p class="mut" style="font-size:22px;margin-top:18px">Contract 0xa67c9bbcd4350b24e33e25e2ebd7c80c04409df7, verified · 14 fork tests, 3 fuzz tests, 3 invariants · Slither reviewed · SECURITY.md</p>
+  <div class="foot"><span>MUSD Trove Radar + TroveGuard</span><span>5</span></div>
+</section>
+
+<!-- 6 -->
+<section class="slide">
+  <div class="kicker">The web flow and the keeper</div>
+  <h1>A wallet page for borrowers, a daemon for keepers</h1>
+  <div class="grid2" style="grid-template-columns:.95fr 1.05fr;align-items:start">
+    <img class="shot" src="guard-app.png" alt="guard.html with a trove loaded">
+    <div>
+      <h2>guard.html</h2>
+      <ul>
+        <li>Any EIP-1193 wallet: switch to Mezo Testnet, see your trove and guard, arm it, fund it, sign the ladder in one <code>storePermits</code> tx.</li>
+        <li>Every transaction is simulated before the wallet prompt. No keys, nothing loaded from other origins.</li>
+      </ul>
+      <h2 style="margin-top:26px">Keeper daemon</h2>
+      <ul>
+        <li><code>keeper --loop --min-profit 5 --send</code>: <code>eth_call</code> before every send, backoff, JSON logs, Docker image.</li>
+        <li>On testnet it liquidated a 3,873 MUSD trove, skipped three below its minimum profit, and recovered from an RPC error by itself.</li>
+      </ul>
+    </div>
+  </div>
+  <div class="foot"><span>MUSD Trove Radar + TroveGuard</span><span>6</span></div>
+</section>
+
+<!-- 7 -->
+<section class="slide">
+  <div class="kicker">Who it is for</div>
+  <h1>Safer troves mean less bad debt and more trust in MUSD</h1>
+  <div class="grid4" style="margin-bottom:38px">
+    <div class="card"><h2>Borrowers</h2><p>Early warning, their place in the redemption queue, and a guard that acts for them.</p></div>
+    <div class="card"><h2>Keepers</h2><p>An open-source, profit-aware daemon. Liquidations and guard tips are its income.</p></div>
+    <div class="card"><h2>Stability Pool</h2><p>Coverage, pool size and expected BTC gains, plus a live per-depositor lookup.</p></div>
+    <div class="card"><h2>Mezo</h2><p>More keepers and better-protected troves make MUSD sturdier as BTC-backed money.</p></div>
+  </div>
+  <h2>How it can pay for itself</h2>
+  <ul>
+    <li>A hosted alert service: free tier, then paid per-trove alerts and Telegram subscriptions.</li>
+    <li>An optional protocol fee on guard tips, and a keeper network sharing a hosted RPC and mempool feed.</li>
+  </ul>
+  <div class="foot"><span>MUSD Trove Radar + TroveGuard</span><span>7</span></div>
+</section>
+
+<!-- 8 -->
+<section class="slide">
+  <div class="kicker">What's new and what's next</div>
+  <h1>Wave 2 shipped. Mainnet is the next step.</h1>
+  <div class="grid2">
+    <div class="card"><h2>Done in Wave 2</h2><ul>
+      <li>Event history and event alerts</li>
+      <li>TroveGuard v2 with repay mode, live on testnet</li>
+      <li>Fuzz tests, invariants and a Slither review</li>
+      <li>The browser guard page</li>
+      <li>Dashboard history and the Stability Pool view</li>
+      <li>Keeper daemon and Docker image</li></ul></div>
+    <div class="card"><h2>Next</h2><ul>
+      <li>Hosted alerts with per-user subscriptions</li>
+      <li>A keeper network: many operators, no duplicate sends</li>
+      <li>Mempool alerts for incoming redemptions</li>
+      <li>An external audit of TroveGuard</li>
+      <li>Mainnet, once MUSD addresses and keeper economics are confirmed</li></ul></div>
+  </div>
+  <p style="margin-top:30px"><b>Ask:</b> feedback from the Mezo team on the guard design, and a path to mainnet addresses.</p>
+  <p class="mut" style="font-size:24px">github.com/northbit-dev/musd-trove-radar · northbit-dev.github.io/musd-trove-radar · built by northbit with an AI coding assistant</p>
+  <div class="foot"><span>MUSD Trove Radar + TroveGuard</span><span>8</span></div>
+</section>
+
+</body>
+</html>
