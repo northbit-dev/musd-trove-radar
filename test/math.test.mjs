@@ -58,7 +58,11 @@ test('analyze + health + render on synthetic state', () => {
   assert.equal(troveHealth(undefined, sys).level, 'none');
   assert.match(markdown(r), /Liquidatable now \| 1 troves/);
   assert.match(html(r), /<!doctype html>/);
-  assert.ok(!/<script[^>]*src=/i.test(html(r)) && !/https?:\/\/(?!explorer)/.test(html(r).replace(/<a [^>]*>/g, '').replaceAll(NETWORK.rpc, '')), 'dashboard has no external assets; the Mezo RPC is only used by the live deposit lookup');
+  const page = html(r);
+  assert.deepEqual([...page.matchAll(/<script[^>]*src="([^"]*)"/gi)].map((m) => m[1]), ['radar.js'], 'the only script file is the local live-refresh bundle');
+  assert.ok(!/https?:\/\/(?!explorer)/.test(page.replace(/<a [^>]*>/g, '').replaceAll(NETWORK.rpc, '')), 'dashboard has no external assets; the Mezo RPC is the only other origin');
+  assert.match(page, /Snapshot from block <b id="blk">1<\/b>/, 'without JavaScript the page says which block the snapshot is from');
+  assert.doesNotMatch(html(r, { liveScript: null }), /<script[^>]*src=/i);
 });
 
 test('sort and format helpers', () => {

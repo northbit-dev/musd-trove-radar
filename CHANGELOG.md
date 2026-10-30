@@ -3,6 +3,14 @@
 All dates are 2026. Transactions are on Mezo Testnet (chain 31611); `tx` links go to explorer.test.mezo.org.
 Commit links are relative to the repository on GitHub.
 
+## Unreleased
+
+### Changed
+* **Live dashboard**: `index.html` now reads the MUSD contracts from the Mezo RPC in the browser (`out/radar.js`,
+  bundled with esbuild from the CLI's own modules; view-only ABIs, no CDN) on load and every 60 s, and shows
+  "Live from the Mezo RPC · block N · updated …". The embedded snapshot is the fallback and is labelled with its block
+  and age. `npm test`: 49 tests (43 offline).
+
 ## v0.2.0: 30 October (Wave 2)
 
 ### Added

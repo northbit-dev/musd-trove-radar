@@ -8,6 +8,7 @@ import { markdown, html } from './render.mjs';
 import { runKeeper, loadAccount, runProtectKeeper, guardTargets } from './keeper.mjs';
 import { describeRung } from './guard.mjs';
 import { writeGuardPage } from './guard-page.mjs';
+import { writeRadarScript } from './radar-page.mjs';
 import { fmt } from './math.mjs';
 import { queuePosition, simulateRedemption } from './redemption.mjs';
 import { evaluate, diff, describe, eventAlerts } from './alerts.mjs';
@@ -66,9 +67,10 @@ const cmds = {
     let guards = [];
     try { guards = GUARD ? await guardTargets(pc) : []; } catch (e) { console.error(`guard status unavailable: ${e.shortMessage || e.message}`); }
     const g = await writeGuardPage(out);
+    await writeRadarScript(out);
     fs.writeFileSync(`${out}/index.html`, html(report, { proofs, repoUrl: process.env.TROVE_RADAR_REPO_URL, activity, guardPage: Boolean(g), history: rows, guards }));
     console.log(`wrote ${shown(histFile)} (${rows.length} points)`);
-    console.log(`wrote ${shown(out)}/index.html (block ${report.block})`);
+    console.log(`wrote ${shown(out)}/index.html (snapshot block ${report.block}) and radar.js (live reads in the browser)`);
     if (g) console.log(`wrote ${shown(g)} and guard.js`);
   },
   async history() {

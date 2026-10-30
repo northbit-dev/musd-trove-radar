@@ -64,10 +64,11 @@ Pure functions with no I/O, covered by the offline tests:
 
 ## Outputs
 * **CLI** (`cli.mjs`): Markdown or JSON snapshot, redemption queue, event history, `liquidatable --simulate`.
-* **Dashboard** (`render.mjs`, `charts.mjs`): one static HTML file with inline CSS, JS and SVG. It embeds the
-  report, the guard status and history, so it works from `file://`. Its only network request is the optional live
-  Stability Pool depositor lookup. The copy on GitHub Pages is a static
-  snapshot; `node src/cli.mjs dashboard` rebuilds it.
+* **Dashboard** (`render.mjs`, `charts.mjs`, `radar-page.mjs` + `web/radar-app.mjs`): one HTML file with inline CSS
+  and SVG plus a local `radar.js` bundle. The page embeds the report, guard status and history from its build block, so it
+  works from `file://` and without JavaScript. In the browser, `radar.js` re-reads the system and every trove from the
+  Mezo RPC with Multicall3 (about ten JSON-RPC requests) every 60 s and re-renders the block-dependent sections with the same
+  `liveParts()` the build uses. If the RPC fails, the embedded snapshot stays and is labelled "Snapshot from block N".
 * **Guard page** (`guard-page.mjs` bundles `web/guard-app.mjs` with esbuild): an EIP-1193 wallet UI for TroveGuard.
   The EIP-712 permit code (`permits.mjs`) is shared with the CLI, so the browser and Node sign identical digests.
 * **Alerts** (`alerts.mjs`, `webhook.mjs`): evaluate thresholds and events, diff against saved state, and deliver

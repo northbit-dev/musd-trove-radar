@@ -23,7 +23,7 @@ const field = (id, label, attrs = '') => `<label>${label}<input id="${id}" ${att
 
 export function guardHtml(cfg, { script = 'guard.js' } = {}) {
   const json = JSON.stringify(cfg).replace(/</g, '\\u003c');
-  return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+  return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><link rel="icon" href="data:,">
 <title>TroveGuard · ${cfg.chainName}</title><meta name="description" content="Arm TroveGuard for your MUSD trove with your own wallet: reserves, trigger and a pre-signed permit ladder.">
 <style>
 :root{--bg:#0d0f14;--card:#171a22;--line:#262b38;--fg:#e8e8ef;--mute:#9aa0b4;--red:#ff4d7d;--amber:#f5a524;--green:#34d399;--blue:#7cb4ff}

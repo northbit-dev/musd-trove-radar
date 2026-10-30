@@ -82,7 +82,7 @@ test('dashboard: trends, Stability Pool section and guard status embedded for th
   assert.match(page, /guard\.html\?borrower=/);
   assert.match(page, /"g":\{"0x1111111111111111111111111111111111111111":\[true,160/);
   assert.match(page, /"sel":\{"gain":"0x[0-9a-f]{8}","dep":"0x[0-9a-f]{8}"\}/);
-  assert.doesNotMatch(page, /<script[^>]+src=/);
+  assert.doesNotMatch(page, /<script[^>]+src="https?:/, 'no remote scripts; radar.js is local');
 });
 
 test('spGainOf: pool balance after the liquidation minus the balance before it', async () => {

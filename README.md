@@ -41,7 +41,7 @@ The keeper first ran `liquidate()` as an `eth_call` and broadcast only after the
 npm install
 node src/cli.mjs snapshot            # Markdown report (+ out/snapshot.json, out/snapshot.md)
 node src/cli.mjs snapshot --json     # machine-readable
-node src/cli.mjs dashboard           # out/index.html, static page with trends, Stability Pool and trove lookup
+node src/cli.mjs dashboard           # out/index.html + radar.js: live in the browser, snapshot as fallback
 node src/cli.mjs dashboard --backfill 24   # seed out/history.json from archive state when it has < 2 rows
 node src/cli.mjs redemption          # front of the redemption queue + depth table
 node src/cli.mjs redemption 0xAddr --amount 25000   # your queue position + what a 25k redemption would hit
@@ -83,13 +83,18 @@ Blocks 16158138–16458137: 1 liquidation(s) of 1 trove(s), 2,212.59 MUSD debt, 
 The first line above is the keeper's own liquidation. The dashboard shows the latest 20 entries under **Recent activity**, with explorer links for every transaction and trove. If the RPC is unavailable the dashboard is still built, without that section.
 
 ## Dashboard
-`dashboard` writes `out/index.html`, a single static page with no external assets. Besides the snapshot it shows:
+`dashboard` writes `out/index.html` and `out/radar.js`, with no external assets and no CDN.
+
+* **Live in the browser.** `radar.js` (bundled locally by esbuild from the same `chain.mjs`, `analyze.mjs` and `render.mjs` the CLI uses) reads the MUSD contracts from the Mezo RPC when the page opens and every 60 s while the tab is visible. A read is about ten JSON-RPC requests: one Multicall3 for the system state, then the trove list and every trove's debt and collateral in batches of 200, plus the TroveGuard status. It re-renders the mode, system cards, Stability Pool cards, ICR distribution, stress test, redemption queue, riskiest troves and the trove lookup (including TroveGuard status). The status line says **Live from the Mezo RPC · block N** with the time of the last update. The browser only gets view functions; there is no key and nothing is sent.
+* **Snapshot fallback.** The page embeds the report from the block it was built at. If JavaScript is off or the RPC can't be reached, that snapshot stays on screen and the status line says **Snapshot from block N** with its time and age. If a later refresh fails, the last live block stays and the line says when the refresh failed.
+
+Besides the block-dependent views it shows:
 
 * **Trends.** Every build appends one row to `out/history.json` (block, time, TCR, price, troves, debt, liquidatable count and debt, Stability Pool deposits and BTC). Rows are deduplicated by block and capped at 5,000. Inline SVG charts show TCR against the 150 % CCR line and the liquidatable count. With fewer than two rows the second chart falls back to troves liquidated per day from the event history, and a third chart shows MUSD redeemed per day from events. `--backfill N` fills an empty or one-row history with N earlier snapshots read from archive state, spread over `--backfill-span` blocks (default 100,000). `--history FILE` moves the file.
 * **Stability Pool.** Total deposits, coverage of liquidatable debt, the BTC the pool holds for depositors (`getCollateralBalance`), and the BTC the pool gained from each liquidation in the event history. The gain is measured as the pool's `StabilityPoolCollateralBalanceUpdated` balance after the transaction minus the balance before it, because MUSD's `Liquidation` event does not split the offset from the redistribution. A depositor field calls `getCompoundedMUSDDeposit` and `getDepositorCollateralGain` live over the Mezo RPC. This lookup is the page's only network request.
 * **Trove lookup with guard status.** The lookup now also says whether the address has an armed TroveGuard (trigger, BTC and MUSD reserves, next rung, whether `protect` would run now) and links to `guard.html?borrower=…`. Guard status is read at the same block as the snapshot.
 
-The hosted dashboard on GitHub Pages is a static snapshot. Rebuild it locally with `node src/cli.mjs dashboard --backfill 24`; `out/history.json` and `out/events.json` carry over between local builds, and an empty history is rebuilt from archive state and the event history.
+The hosted dashboard on GitHub Pages reads live as above; trends, recent activity and the proof list come from the last build. Rebuild it (and refresh the embedded snapshot) with `node src/cli.mjs dashboard --backfill 24`; `out/history.json` and `out/events.json` carry over between local builds, and an empty history is rebuilt from archive state and the event history.
 
 ## Alerts and webhooks
 `watch` evaluates each borrower once per interval. It sends an alert only when something changes:
@@ -129,13 +134,13 @@ When a secret is set, JSON deliveries carry `x-trove-radar-timestamp` and `x-tro
 * `src/analyze.mjs` builds the report, including Stability Pool coverage of liquidatable debt and the health level per borrower.
 * `src/events.mjs` fetches and decodes TroveManager events in block windows, groups them per transaction and keeps the `out/events.json` cache.
 * `src/alerts.mjs` and `src/webhook.mjs` handle alert evaluation, change detection, payload formats, signing and delivery.
-* `src/render.mjs` produces Markdown and the HTML dashboard: no external assets, the trove lookup runs over data embedded in the page, and only the Stability Pool depositor lookup calls the RPC. `src/history.mjs` keeps `history.json` and the per-day event buckets, and `src/charts.mjs` draws the inline SVG charts.
+* `src/render.mjs` produces Markdown and the HTML dashboard. `liveParts()` renders every block-dependent section, so the server build and the browser refresh produce the same HTML. `src/radar-page.mjs` bundles `src/web/radar-app.mjs` into `out/radar.js`, with a browser stand-in for `config.mjs` that carries addresses and view-only ABI fragments. `src/history.mjs` keeps `history.json` and the per-day event buckets, and `src/charts.mjs` draws the inline SVG charts.
 * `contracts/TroveGuard.sol` + `src/guard.mjs`: the on-chain top-up guard and its keeper side (targets via `status()`, insert hints via `HintHelpers.getApproxHint` + `SortedTroves.findInsertPosition`, dry-run before send).
 * `src/web/guard-app.mjs` is the browser wallet app for TroveGuard. `src/guard-page.mjs` bundles it with esbuild into `out/guard.html` + `out/guard.js`, and `src/permits.mjs` holds the EIP-712 and ladder code shared with the CLI.
 * `src/keeper.mjs` dry-runs each liquidatable trove, and `src/profit.mjs` values its reward (200 MUSD + 0.5 % of collateral, or the TroveGuard tip) against gas. It only broadcasts with `--send` and refuses to send unless the chain ID is 31611 (Mezo Testnet). `src/daemon.mjs` is the `--loop` with exponential backoff, and `src/log.mjs` writes the JSON log lines. See [Run your own keeper](docs/run-a-keeper.md) for Docker and the log format.
 
 ## Tests
-`npm test` runs 47 Node tests (TroveGuard's Foundry tests are described under [TroveGuard](#troveguard)): 41 offline tests and 6 live, read-only tests against Mezo Testnet. The offline tests cover the maths, the redemption queue and simulation, alert diffing, event alerts and their deduplication, the payload formats, signatures, webhook delivery and retries against a local HTTP server, and TroveGuard ladder signing against the Solidity typehashes, event decoding against real Mezo Testnet logs (`test/fixtures/`), window halving, retries and the incremental cache, plus the browser guard page (ladder and reserve maths, no remote scripts or key material in `guard.html`/`guard.js`), the dashboard history, charts, Stability Pool gain maths and embedded guard status, and the keeper's profitability check, skip reasons, backoff loop and key loading against a mocked client. The live tests check that:
+`npm test` runs 49 Node tests (TroveGuard's Foundry tests are described under [TroveGuard](#troveguard)): 43 offline tests and 6 live, read-only tests against Mezo Testnet. The offline tests cover the maths, the redemption queue and simulation, alert diffing, event alerts and their deduplication, the payload formats, signatures, webhook delivery and retries against a local HTTP server, and TroveGuard ladder signing against the Solidity typehashes, event decoding against real Mezo Testnet logs (`test/fixtures/`), window halving, retries and the incremental cache, plus the browser guard page (ladder and reserve maths, no remote scripts or key material in `guard.html`/`guard.js`), the dashboard history, charts, Stability Pool gain maths and embedded guard status, the live-refresh bundle (view-only ABIs, no Node built-ins, the same HTML as the server render), and the keeper's profitability check, skip reasons, backoff loop and key loading against a mocked client. The live tests check that:
 * our off-chain ICR **equals** on-chain `getCurrentICR` for a random sample of troves
 * the `SortedTroves` tail is among our riskiest troves
 * every trove we flag as liquidatable passes an `eth_call` liquidation, and a healthy trove reverts
@@ -146,7 +151,7 @@ Use `npm run test:offline` to skip the network tests.
 
 ## TroveGuard
 
-`contracts/TroveGuard.sol` tops up an MUSD trove automatically. The borrower parks a BTC reserve in the guard, picks a trigger ICR and stores a few pre-signed `addCollWithSignature` permits. When the trove's ICR falls below the trigger, anyone can call `protect(borrower, upperHint, lowerHint)`. The guard spends one permit, sends the signed amount of BTC into the borrower's own trove through `BorrowerOperationsSignatures`, and pays the caller a small tip from the reserve. The radar's keeper is that caller.
+`contracts/TroveGuard.sol` protects an MUSD trove automatically. The borrower parks a BTC reserve (and, since v2, an MUSD reserve) in the guard, picks a trigger ICR and stores a ladder of pre-signed permits: `addCollWithSignature` top-ups and `repayMUSDWithSignature` repayments. When the trove's ICR falls below the trigger, anyone can call `protect(borrower, upperHint, lowerHint)`. The guard spends the next permit, sends the signed BTC or MUSD into the borrower's own trove through `BorrowerOperationsSignatures`, and pays the caller a small tip from the BTC reserve. The radar's keeper is that caller.
 
 The current deployment is **v2**, which adds a [repay-MUSD mode](#repay-musd-mode-v2): a rung can also pay down debt from an MUSD reserve.
 
