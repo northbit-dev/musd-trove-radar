@@ -43,6 +43,7 @@ node src/cli.mjs snapshot --json     # machine-readable
 node src/cli.mjs dashboard           # out/index.html, self-contained static page with trove lookup
 node src/cli.mjs redemption          # front of the redemption queue + depth table
 node src/cli.mjs redemption 0xAddr --amount 25000   # your queue position + what a 25k redemption would hit
+node src/cli.mjs history [--blocks 100000] [--json]   # liquidations and redemptions from TroveManager events
 node src/cli.mjs liquidatable --simulate   # list ICR<MCR troves, dry-run liquidate() via eth_call
 node src/cli.mjs watch 0xAddr [0xAddr…] --interval 60 --warn 1.5 --crit 1.2 --redeem-warn 50000 \
   [--webhook URL --format json|slack|discord|telegram --chat-id ID] [--state file]
@@ -58,6 +59,23 @@ MUSD can be redeemed 1:1 for BTC. `TroveManager.redeemCollateral` walks `SortedT
 * a simulation of a redemption of any size (`--amount`)
 
 Redemption fees and partial-redemption hints are not modelled. A live test checks the queue against an on-chain walk of `SortedTroves.getLast/getPrev`, and against `getNominalICR`.
+
+## History
+The radar's other views are a snapshot at one block. `history` adds what actually happened: it reads TroveManager's `Liquidation`, `TroveLiquidated`, `Redemption` and `TroveUpdated` events and turns them into one entry per transaction.
+
+* **Liquidations** carry the liquidated debt and collateral, the gas compensation and every trove closed (`TroveLiquidated`).
+* **Redemptions** carry the MUSD redeemed, the BTC paid out and the fee. MUSD does not log per-trove redemption amounts, so the hit troves come from `TroveUpdated` with operation `redeemCollateral`, with their debt and collateral after the redemption and whether they were closed.
+
+Mezo's public RPC accepts at most 10,000 blocks per `eth_getLogs`, so logs are fetched in windows (`--window`, default 10,000). A window the RPC rejects is halved, and other errors are retried with backoff. Decoded events are cached in `out/events.json` together with the block range they cover, so the next run only asks for blocks it has not seen. `--blocks` sets how far back to look (default 100,000 blocks, about 4.8 days at roughly 4.2 s per block). `--json` prints totals plus every event.
+
+```
+$ node src/cli.mjs history --blocks 300000
+Blocks 16158138–16458137: 1 liquidation(s) of 1 trove(s), 2,212.59 MUSD debt, 0.029788 BTC · 3 redemption(s), 3.22 MUSD for 0.00004009 BTC across 1 trove(s)
+16452016  2026-10-29 22:32:18 UTC  LIQUIDATION  2,212.59 MUSD debt, 0.029788 BTC coll  troves: 0xDA04…AaAa  https://explorer.test.mezo.org/tx/0x6d0f1c…
+16383114  2026-10-26 14:58:19 UTC  REDEMPTION   0.01 MUSD → 0.00000012 BTC …
+```
+
+The first line above is the keeper's own liquidation. The dashboard shows the latest 20 entries under **Recent activity**, with explorer links for every transaction and trove. If the RPC is unavailable the dashboard is still built, without that section.
 
 ## Alerts and webhooks
 `watch` evaluates each borrower once per interval. It sends an alert only when something changes:
@@ -82,17 +100,19 @@ When a secret is set, JSON deliveries carry `x-trove-radar-timestamp` and `x-tro
 * `src/math.mjs` holds pure BigInt maths: ICR, liquidation price, Recovery Mode trigger price, ICR buckets and price-shock stress tests.
 * `src/redemption.mjs` builds the redemption queue, the depth table and the redemption simulation.
 * `src/analyze.mjs` builds the report, including Stability Pool coverage of liquidatable debt and the health level per borrower.
+* `src/events.mjs` fetches and decodes TroveManager events in block windows, groups them per transaction and keeps the `out/events.json` cache.
 * `src/alerts.mjs` and `src/webhook.mjs` handle alert evaluation, change detection, payload formats, signing and delivery.
 * `src/render.mjs` produces Markdown and a self-contained HTML dashboard: no external assets, and the trove lookup runs in the browser over the data embedded in the page.
 * `contracts/TroveGuard.sol` + `src/guard.mjs`: the on-chain top-up guard and its keeper side (targets via `status()`, insert hints via `HintHelpers.getApproxHint` + `SortedTroves.findInsertPosition`, dry-run before send).
 * `src/keeper.mjs` simulates liquidations first and only broadcasts with `--send`. It refuses to send unless the chain ID is 31611 (Mezo Testnet).
 
 ## Tests
-`npm test` runs 22 Node tests (TroveGuard's Foundry tests are described under [TroveGuard](#troveguard)): 17 offline tests and 5 live, read-only tests against Mezo Testnet. The offline tests cover the maths, the redemption queue and simulation, alert diffing, the payload formats, signatures, and webhook delivery and retries against a local HTTP server. The live tests check that:
+`npm test` runs 29 Node tests (TroveGuard's Foundry tests are described under [TroveGuard](#troveguard)): 23 offline tests and 6 live, read-only tests against Mezo Testnet. The offline tests cover the maths, the redemption queue and simulation, alert diffing, the payload formats, signatures, webhook delivery and retries against a local HTTP server, and event decoding against real Mezo Testnet logs (`test/fixtures/`), window halving, retries and the incremental cache. The live tests check that:
 * our off-chain ICR **equals** on-chain `getCurrentICR` for a random sample of troves
 * the `SortedTroves` tail is among our riskiest troves
 * every trove we flag as liquidatable passes an `eth_call` liquidation, and a healthy trove reverts
 * our redemption order matches an on-chain `SortedTroves` walk, and our NICR equals `getNominalICR`
+* `history` finds the keeper's own liquidation (block 16452016) in TroveManager's events
 
 Use `npm run test:offline` to skip the network tests.
 

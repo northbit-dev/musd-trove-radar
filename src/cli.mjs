@@ -10,6 +10,8 @@ import { fmt } from './math.mjs';
 import { queuePosition, simulateRedemption } from './redemption.mjs';
 import { evaluate, diff, describe } from './alerts.mjs';
 import { formatPayload, sendWebhook } from './webhook.mjs';
+import { syncEvents, summarize } from './events.mjs';
+import { describeEvent } from './render.mjs';
 
 const [cmd = 'snapshot', ...rest] = process.argv.slice(2);
 const flag = (n) => rest.includes(`--${n}`);
@@ -37,8 +39,21 @@ const cmds = {
     fs.mkdirSync(out, { recursive: true });
     const proofsFile = new URL('../proofs.json', import.meta.url);
     const proofs = fs.existsSync(proofsFile) ? JSON.parse(fs.readFileSync(proofsFile, 'utf8')) : [];
-    fs.writeFileSync(`${out}/index.html`, html(report, { proofs, repoUrl: process.env.TROVE_RADAR_REPO_URL }));
+    let activity = null;
+    try {
+      activity = await syncEvents(client(), { blocks: BigInt(opt('blocks', 100_000)), toBlock: report.block, file: `${out}/events.json` });
+    } catch (e) { console.error(`history unavailable: ${e.shortMessage || e.message}`); }
+    fs.writeFileSync(`${out}/index.html`, html(report, { proofs, repoUrl: process.env.TROVE_RADAR_REPO_URL, activity }));
     console.log(`wrote ${shown(out)}/index.html (block ${report.block})`);
+  },
+  async history() {
+    const pc = client();
+    const h = await syncEvents(pc, { blocks: BigInt(opt('blocks', 100_000)), file: `${out}/events.json`, window: opt('window') ? BigInt(opt('window')) : undefined, log: flag('json') ? () => {} : console.error });
+    const events = [...h.events].reverse();
+    if (flag('json')) { process.stdout.write(JSON.stringify({ fromBlock: h.fromBlock, toBlock: h.toBlock, summary: summarize(h.events), events }, (_, v) => (typeof v === 'bigint' ? v.toString() : v), 2) + '\n'); return; }
+    const s = summarize(h.events);
+    console.log(`Blocks ${h.fromBlock}–${h.toBlock}: ${s.liquidations} liquidation(s) of ${s.liquidatedTroves} trove(s), ${fmt(s.liquidatedDebt)} MUSD debt, ${fmt(s.liquidatedColl, 6)} BTC · ${s.redemptions} redemption(s), ${fmt(s.redeemedMusd)} MUSD for ${fmt(s.redeemedBtc, 8)} BTC across ${s.redeemedTroves} trove(s)`);
+    for (const e of events.slice(0, Number(opt('top', 50)))) console.log(describeEvent(e));
   },
   async liquidatable() {
     const { pc, report } = await load();

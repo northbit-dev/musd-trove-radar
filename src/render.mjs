@@ -36,6 +36,25 @@ export function markdown(r) {
   return L.join('\n') + '\n';
 }
 
+/** One line per activity entry, for the CLI. */
+export function describeEvent(e) {
+  const t = e.timestamp ? when(e.timestamp) : '';
+  const troves = e.troves.map((x) => short(x.borrower)).join(', ') || '–';
+  const what = e.type === 'liquidation'
+    ? `LIQUIDATION  ${fmt(e.debt)} MUSD debt, ${fmt(e.coll, 6)} BTC coll`
+    : `REDEMPTION   ${fmt(e.musd)} MUSD → ${fmt(e.btc, 8)} BTC (fee ${fmt(e.fee, 8)} BTC)`;
+  return `${String(e.block).padEnd(9)} ${t}  ${what}  troves: ${troves}  ${NETWORK.explorer}/tx/${e.tx}`;
+}
+
+/** "Recent activity" table rows for the dashboard. */
+export function activityRows(events, limit = 20) {
+  return [...events].reverse().slice(0, limit).map((e) => {
+    const troves = e.troves.map((x) => `<a href="${addrLink(x.borrower)}" title="${x.borrower}">${short(x.borrower)}</a>${x.closed ? ' (closed)' : ''}`).join(', ') || '–';
+    const amount = e.type === 'liquidation' ? `${fmt(e.debt)} MUSD · ${fmt(e.coll, 6)} BTC` : `${fmt(e.musd)} MUSD → ${fmt(e.btc, 8)} BTC`;
+    return `<tr class="${e.type === 'liquidation' ? 'liq' : ''}"><td>${e.timestamp ? when(e.timestamp) : e.block}</td><td>${e.type === 'liquidation' ? 'Liquidation' : 'Redemption'}</td><td>${amount}</td><td>${troves}</td><td><a href="${NETWORK.explorer}/tx/${e.tx}"><code>${e.tx.slice(0, 10)}…</code></a></td></tr>`;
+  }).join('');
+}
+
 const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const num = (x, dp = 2) => Number(fmt(x, dp).replace(/,/g, ''));
 
@@ -53,7 +72,7 @@ export function lookupData(r) {
  * One small inline script powers the "check your trove" lookup over embedded data.
  * opts.proofs: [{label, hash}] testnet transactions to link (e.g. keeper liquidations).
  */
-export function html(r, { proofs = [], repoUrl } = {}) {
+export function html(r, { proofs = [], repoUrl, activity = null } = {}) {
   const s = r.system;
   const q = r.redemption;
   const maxB = Math.max(1, ...r.buckets.map((b) => b.count));
@@ -67,6 +86,8 @@ export function html(r, { proofs = [], repoUrl } = {}) {
   const rq = q ? q.front.map((t) => `<tr class="${rowCls(t)}"><td>${t.position}</td><td>${owner(t.owner)}</td><td>${pct(t.icr)}</td><td>${fmt(t.debt)}</td><td>${fmt(t.ahead, 0)}</td></tr>`).join('') : '';
   const depth = q ? q.depth.map((d) => `<tr><td>${fmt(d.musd, 0)}</td><td>${d.troves}</td><td>${d.closed}</td></tr>`).join('') : '';
   const proofList = proofs.length ? `<h2 id="keeper">Keeper on testnet</h2><ul class="proofs">${proofs.map((p) => `<li>${esc(p.label)}: <a href="${NETWORK.explorer}/tx/${esc(p.hash)}"><code>${esc(p.hash.slice(0, 10))}…${esc(p.hash.slice(-6))}</code></a></li>`).join('')}</ul>` : '';
+  const actRows = activity ? activityRows(activity.events) : '';
+  const actSection = activity ? `<h2 id="activity">Recent activity</h2><p class="sub">Liquidations and redemptions from TroveManager events, blocks ${activity.fromBlock}–${activity.toBlock}.</p>${actRows ? `<div class="scroll"><table><tr><th>Time</th><th>Event</th><th>Amount</th><th>Troves</th><th>Tx</th></tr>${actRows}</table></div>` : '<p>No liquidations or redemptions in this range.</p>'}` : '';
   const data = JSON.stringify({ block: String(r.block), ts: r.timestamp, price: num(r.price, 2), mcr: 110, ccr: 150, explorer: NETWORK.explorer, t: lookupData(r) }).replace(/</g, '\\u003c');
   return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>MUSD Trove Radar · ${esc(r.network)}</title><meta name="description" content="Liquidation, Recovery Mode and redemption radar for MUSD troves on Mezo.">
@@ -93,7 +114,7 @@ details{margin-top:10px;color:var(--mute)}summary{cursor:pointer}.two{display:gr
 </style></head><body><main>
 <header><h1>MUSD Trove Radar</h1><span class="pill ${s.recoveryMode ? 'bad' : 'ok'}">${s.recoveryMode ? 'Recovery Mode' : 'Normal mode'}</span><span class="pill">${esc(r.network)}</span></header>
 <div class="sub">Block ${r.block} · ${when(r.timestamp)} <span id="age"></span> · BTC $${fmt(r.price)}</div>
-<nav aria-label="sections"><a href="#check">Check a trove</a><a href="#dist">Distribution</a><a href="#stress">Stress test</a><a href="#redeem">Redemptions</a><a href="#risk">Riskiest</a>${proofs.length ? '<a href="#keeper">Keeper</a>' : ''}</nav>
+<nav aria-label="sections"><a href="#check">Check a trove</a><a href="#dist">Distribution</a><a href="#stress">Stress test</a><a href="#redeem">Redemptions</a><a href="#risk">Riskiest</a>${activity ? '<a href="#activity">Activity</a>' : ''}${proofs.length ? '<a href="#keeper">Keeper</a>' : ''}</nav>
 <h2 id="check">Check a trove</h2>
 <form class="lookup" id="f" role="search"><label for="addr" class="k" style="width:100%">Borrower address</label><input id="addr" name="address" placeholder="0x… borrower address" autocomplete="off" spellcheck="false"><button>Check</button></form>
 <div id="res" aria-live="polite"></div>
@@ -115,6 +136,7 @@ ${q ? `<h2 id="redeem">Redemption queue</h2>
 <div class="two"><div class="scroll"><table><tr><th>MUSD redeemed</th><th>Troves hit</th><th>Closed</th></tr>${depth}</table></div>
 <div class="scroll"><table><tr><th>#</th><th>Owner</th><th>ICR</th><th>Debt (MUSD)</th><th>MUSD ahead</th></tr>${rq}</table></div></div>` : ''}
 <h2 id="risk">Riskiest troves</h2><div class="scroll"><table><tr><th>#</th><th>Owner</th><th>ICR</th><th>Coll (BTC)</th><th>Debt (MUSD)</th><th>Liq. price</th></tr>${rows}</table></div>
+${actSection}
 ${proofList}
 <details><summary>How to read this page</summary><p>ICR = collateral value ÷ debt for one trove; below 110 % it can be liquidated by anyone. TCR is the same ratio for the whole system; below 150 % Mezo enters Recovery Mode, where troves below 150 % can be liquidated too. The liquidation price is the BTC price at which a trove reaches 110 %. Every number is read from the MUSD contracts at one block and can be re-derived with the open-source CLI.</p></details>
 <footer>Read-only data from the MUSD contracts on ${esc(r.network)} (TroveManager, SortedTroves, StabilityPool, PriceFeed, InterestRateManager). Testnet data, not financial advice. Generated by musd-trove-radar${repoUrl ? ` · <a href="${esc(repoUrl)}">source</a>` : ''}.</footer>

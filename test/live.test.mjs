@@ -69,3 +69,17 @@ test('redemption queue matches the on-chain SortedTroves walk and getNominalICR'
     assert.equal(t.nicr, onchain, `NICR mismatch for ${t.owner}`);
   }
 });
+
+test('history finds our own keeper liquidation from TroveManager events', { skip, timeout: 60_000 }, async () => {
+  const { syncEvents } = await import('../src/events.mjs');
+  const os = await import('node:os');
+  const path = await import('node:path');
+  const fs = await import('node:fs');
+  const file = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'ev-')), 'events.json');
+  const { events } = await syncEvents(pc, { fromBlock: 16451000n, toBlock: 16453000n, file });
+  const liq = events.find((e) => e.tx === '0x6d0f1cdb2407fdc572443802dcf48c0451b713d31afb5c40aa4123a5a2a2d68e');
+  assert.ok(liq, 'keeper liquidation not found');
+  assert.equal(liq.type, 'liquidation');
+  assert.equal(liq.block, 16452016n);
+  assert.equal(liq.troves[0].borrower, '0xDA04759E54728B6636Fe48F7c9795c7B609bAaAa');
+});
