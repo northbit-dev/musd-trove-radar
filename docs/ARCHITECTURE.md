@@ -66,7 +66,8 @@ Pure functions with no I/O, covered by the offline tests:
 * **CLI** (`cli.mjs`): Markdown or JSON snapshot, redemption queue, event history, `liquidatable --simulate`.
 * **Dashboard** (`render.mjs`, `charts.mjs`): one static HTML file with inline CSS, JS and SVG. It embeds the
   report, the guard status and history, so it works from `file://`. Its only network request is the optional live
-  Stability Pool depositor lookup. CI rebuilds it every 15 minutes and keeps `history.json` in the Actions cache.
+  Stability Pool depositor lookup. The copy on GitHub Pages is a static
+  snapshot; `node src/cli.mjs dashboard` rebuilds it.
 * **Guard page** (`guard-page.mjs` bundles `web/guard-app.mjs` with esbuild): an EIP-1193 wallet UI for TroveGuard.
   The EIP-712 permit code (`permits.mjs`) is shared with the CLI, so the browser and Node sign identical digests.
 * **Alerts** (`alerts.mjs`, `webhook.mjs`): evaluate thresholds and events, diff against saved state, and deliver

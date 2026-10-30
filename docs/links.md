@@ -5,7 +5,7 @@ The GitHub links go live with the first push; everything else is live on Mezo Te
 | What | Link |
 |---|---|
 | Repository | `https://github.com/northbit-dev/musd-trove-radar` |
-| Live dashboard (GitHub Pages, rebuilt every 15 min) | `https://northbit-dev.github.io/musd-trove-radar/` |
+| Dashboard (GitHub Pages, static snapshot) | `https://northbit-dev.github.io/musd-trove-radar/` |
 | TroveGuard web app | `https://northbit-dev.github.io/musd-trove-radar/guard.html` |
 | Release v0.2.0 notes | [CHANGELOG.md](../CHANGELOG.md#v020-30-october-wave-2) |
 

@@ -40,7 +40,7 @@ The guard makes no arbitrary calls, holds no token approvals, and takes no calle
 
 * 14 fork unit tests, 3 fuzz tests and 3 handler-based invariants run against real Mezo Testnet contracts on an anvil fork (`forge test --fork-url http://127.0.0.1:8545`).
 * Slither: see [docs/security/static-analysis.md](docs/security/static-analysis.md). There are no High or Medium findings, and each of the remaining findings is justified.
-* CI (`.github/workflows/contracts.yml`) builds the contract, runs the suite against a fork when the RPC is reachable, and reports gas.
+* CI runs locally: `forge build`, `forge test` against an anvil fork of Mezo Testnet, `forge snapshot --diff .gas-snapshot` for gas, and `npm test` for the Node code.
 
 ## Reporting
 
