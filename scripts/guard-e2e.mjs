@@ -1,11 +1,11 @@
 #!/usr/bin/env node
-// End-to-end run of out/guard.html on Mezo Testnet in headless Chromium.
+// End-to-end run of out/guard.html on Mezo Testnet in a headless browser (E2E_BROWSER, E2E_DEVICE).
 // The page talks to an injected EIP-1193 provider; every request is answered by this Node process,
 // which signs with the testnet key from MEZO_KEY_FILE. The key never enters the page.
 import fs from 'node:fs';
 import http from 'node:http';
 import path from 'node:path';
-import { chromium } from 'playwright-core';
+import * as pw from 'playwright-core';
 import { createPublicClient, createWalletClient, http as rpc, hexToBigInt } from 'viem';
 import { mezoTestnet } from '../src/chain.mjs';
 import { NETWORK } from '../src/config.mjs';
@@ -66,8 +66,13 @@ const server = http.createServer((req, res) => {
 await new Promise((r) => server.listen(0, '127.0.0.1', r));
 const url = `http://127.0.0.1:${server.address().port}/guard.html`;
 
-const browser = await chromium.launch({ executablePath: process.env.CHROME || undefined });
-const page = await browser.newPage({ viewport: { width: 1200, height: 900 } });
+const engine = pw[process.env.E2E_BROWSER || 'chromium'];
+if (!engine?.launch) throw new Error('E2E_BROWSER must be chromium, firefox or webkit');
+const device = process.env.E2E_DEVICE ? pw.devices[process.env.E2E_DEVICE] : { viewport: { width: 1200, height: 900 } };
+if (!device) throw new Error(`unknown E2E_DEVICE ${process.env.E2E_DEVICE}`);
+const browser = await engine.launch({ executablePath: process.env.CHROME || undefined });
+const page = await browser.newPage(device);
+console.log(`browser: ${process.env.E2E_BROWSER || 'chromium'} ${browser.version()}${process.env.E2E_DEVICE ? `, ${process.env.E2E_DEVICE}` : ''}`);
 page.on('dialog', (d) => d.accept());
 page.on('pageerror', (e) => console.error('pageerror', e.message));
 await page.exposeFunction('__wallet', async (req) => {

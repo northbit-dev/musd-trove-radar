@@ -38,7 +38,7 @@ button{padding:8px 14px;border-radius:8px;border:0;background:#3b82f6;color:#fff
 .g-bad .card:nth-child(2){border-color:var(--red)}.g-warn .card:nth-child(2),.g-warn .card:nth-child(9){border-color:var(--amber)}.g-ok .card:nth-child(2){border-color:var(--green)}
 form,fieldset{display:flex;flex-wrap:wrap;gap:10px;align-items:flex-end;border:1px solid var(--line);border-radius:10px;padding:12px;margin:0}
 label{display:flex;flex-direction:column;font-size:12px;color:var(--mute);gap:4px}input,select{padding:7px 9px;border-radius:7px;border:1px solid var(--line);background:var(--card);color:var(--fg);font:14px ui-monospace,monospace;width:160px}
-input[type=checkbox]{width:auto}#addr{width:420px;max-width:100%}.row{display:flex;gap:10px;align-items:center}
+input[type=checkbox]{width:auto}label{min-width:0;max-width:100%}#lookup label{flex:0 1 440px}#addr{width:100%}@media (max-width:600px){main{padding:14px}}.row{display:flex;gap:10px;align-items:center}
 table{border-collapse:collapse;font-variant-numeric:tabular-nums}td,th{padding:5px 10px;border-bottom:1px solid var(--line);text-align:left}th{color:var(--mute);font-weight:500;font-size:13px}
 #log{list-style:none;padding:0;font-size:14px}#log li{padding:5px 0;border-bottom:1px solid var(--line)}#log time{color:var(--mute);font-size:12px;margin-right:6px}#log .ok{color:var(--green)}#log .bad,.bad{color:var(--red)}
 #ladderPreview{color:var(--mute);font-size:13px;width:100%}

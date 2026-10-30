@@ -3,120 +3,137 @@ MUSD Trove Radar · live demo on Mezo Testnet (chain 31611), read-only
 $ node src/cli.mjs snapshot
 # MUSD Trove Radar — Mezo Testnet
 
-Block 16452112 · 2026-10-29 22:38:51 UTC · BTC $79,062.97
+Block 16459090 · 2026-10-30 06:40:34 UTC · BTC $78,498.52
 
 | Metric | Value |
 |---|---|
-| Active troves | 354 |
-| System collateral | 15,419.5474 BTC |
-| System debt | 429,326,660.41 MUSD |
-| TCR | 283.9 %  |
-| Recovery Mode trigger | BTC $41,764.51 (47.2 % drop) |
-| Stability Pool | 86,230,524.75 MUSD |
+| Active troves | 353 |
+| System collateral | 15,419.5004 BTC |
+| System debt | 429,326,566.62 MUSD |
+| TCR | 281.9 %  |
+| Recovery Mode trigger | BTC $41,764.63 (46.8 % drop) |
+| Stability Pool | 86,224,454.11 MUSD |
 | Global borrow rate | 1.00 % |
-| Liquidatable now | 3 troves · 8,070.78 MUSD |
-| SP coverage of liquidatable debt | fully covered (10684× liquidatable debt) |
-| At risk (MCR ≤ ICR < CCR) | 131 troves · 388,450.75 MUSD |
+| Liquidatable now | 2 troves · 4,056.37 MUSD |
+| SP coverage of liquidatable debt | fully covered (21257× liquidatable debt) |
+| At risk (MCR ≤ ICR < CCR) | 136 troves · 403,061.36 MUSD |
 
 ## ICR distribution
 
 | ICR | Troves | Debt (MUSD) |
 |---|---:|---:|
-| < 110 % (liquidatable) | 3 | 8,070 |
-| 110–130 % | 53 | 149,105 |
-| 130–150 % | 78 | 239,345 |
-| 150–200 % | 159 | 426,189,384 |
-| 200–300 % | 37 | 106,074 |
-| ≥ 300 % | 24 | 2,634,679 |
+| < 110 % (liquidatable) | 2 | 4,056 |
+| 110–130 % | 57 | 160,286 |
+| 130–150 % | 79 | 242,774 |
+| 150–200 % | 154 | 426,178,669 |
+| 200–300 % | 38 | 108,183 |
+| ≥ 300 % | 23 | 2,632,596 |
 
 ## Price-shock stress test
 
 | BTC drop | Price | Liquidatable | Debt (MUSD) | TCR | Recovery |
 |---:|---:|---:|---:|---:|:-:|
-| 5.0 % | $75,109 | 10 | 23,439 | 269.7 % | no |
-| 10.0 % | $71,156 | 18 | 40,874 | 255.5 % | no |
-| 20.0 % | $63,250 | 85 | 260,030 | 227.1 % | no |
-| 30.0 % | $55,344 | 183 | 426,324,867 | 198.7 % | no |
-| 50.0 % | $39,531 | 298 | 426,596,538 | 141.9 % | yes |
+| 5.0 % | $74,573 | 9 | 20,772 | 267.8 % | no |
+| 10.0 % | $70,648 | 20 | 44,639 | 253.7 % | no |
+| 20.0 % | $62,798 | 90 | 271,431 | 225.5 % | no |
+| 30.0 % | $54,948 | 204 | 426,369,740 | 197.3 % | no |
+| 50.0 % | $39,249 | 297 | 426,596,420 | 140.9 % | yes |
 
 ## Riskiest troves
 
 | # | Owner | ICR | Coll (BTC) | Debt (MUSD) | Liq. price |
 |---:|---|---:|---:|---:|---:|
-| 1 | [0x03ff…62d2](https://explorer.test.mezo.org/address/0x03ffb3720214bDB0DB5F5F71b6cE16B008f762d2) | 107.9 % | 0.0299 | 2,197.46 | $80,581 |
-| 2 | [0x1234…9BfE](https://explorer.test.mezo.org/address/0x1234567D6dFe8bd0f0EB6b574c5D0fe41b819BfE) | 108.1 % | 0.0530 | 3,873.11 | $80,385 |
-| 3 | [0x4799…Cf08](https://explorer.test.mezo.org/address/0x4799e9fB361Fb6a85473bB08dA00A4012E02Cf08) | 109.5 % | 0.0277 | 2,000.19 | $79,359 |
-| 4 | [0xE1CB…C007](https://explorer.test.mezo.org/address/0xE1CB426518F06CE90B6F22cdA7f9BA0aef58C007) | 110.3 % | 0.0287 | 2,056.14 | $78,807 |
-| 5 | [0xac89…1b15](https://explorer.test.mezo.org/address/0xac89fFA908D0bD7A9EE78DfAd4b40362d9971b15) | 111.0 % | 0.0450 | 3,203.48 | $78,307 |
-| 6 | [0xbe65…bDb6](https://explorer.test.mezo.org/address/0xbe65D538E887D09a73354172c4411335fC2cbDb6) | 112.3 % | 0.0298 | 2,102.30 | $77,417 |
-| 7 | [0xdeB2…3920](https://explorer.test.mezo.org/address/0xdeB23eb3bCdc2A08cC64c45586149Fbd83053920) | 112.5 % | 0.0285 | 2,002.15 | $77,276 |
-| 8 | [0xA506…5D5A](https://explorer.test.mezo.org/address/0xA506b2250B85A0c7dE80DD313A0Db9cD8a655D5A) | 112.6 % | 0.0285 | 2,000.05 | $77,195 |
-| 9 | [0x155c…c92C](https://explorer.test.mezo.org/address/0x155c4E84D2936bEBF3b90f667466e61b9655c92C) | 114.7 % | 0.0290 | 2,002.39 | $75,822 |
-| 10 | [0x6883…C013](https://explorer.test.mezo.org/address/0x68833F0c0e6d3E0B21805627867B86157572C013) | 115.6 % | 0.0292 | 2,002.09 | $75,215 |
-| 11 | [0x3a02…47Cb](https://explorer.test.mezo.org/address/0x3a02A1f0E556420cF7e0626286B29C8D63Ae47Cb) | 115.9 % | 0.0499 | 3,403.53 | $75,027 |
-| 12 | [0x9B69…e83f](https://explorer.test.mezo.org/address/0x9B69f85FEda15a6f2A830A05dFd363339F75e83f) | 117.9 % | 0.0300 | 2,010.43 | $73,715 |
-| 13 | [0xE6C2…D314](https://explorer.test.mezo.org/address/0xE6C29Ea1873853eB9f5968f9513FfD6cE874D314) | 117.9 % | 0.0300 | 2,010.42 | $73,715 |
-| 14 | [0x9353…A5F6](https://explorer.test.mezo.org/address/0x935349725aDd49A855669AD4a9f9D6dA54ffA5F6) | 118.3 % | 0.0300 | 2,003.85 | $73,474 |
-| 15 | [0x02f4…182E](https://explorer.test.mezo.org/address/0x02f472dd2c08a4dAb586aB11BaFb294c27F5182E) | 118.4 % | 0.0300 | 2,002.57 | $73,427 |
+| 1 | [0x4799…Cf08](https://explorer.test.mezo.org/address/0x4799e9fB361Fb6a85473bB08dA00A4012E02Cf08) | 108.8 % | 0.0277 | 2,000.21 | $79,359 |
+| 2 | [0xE1CB…C007](https://explorer.test.mezo.org/address/0xE1CB426518F06CE90B6F22cdA7f9BA0aef58C007) | 109.5 % | 0.0287 | 2,056.16 | $78,807 |
+| 3 | [0xac89…1b15](https://explorer.test.mezo.org/address/0xac89fFA908D0bD7A9EE78DfAd4b40362d9971b15) | 110.2 % | 0.0450 | 3,203.51 | $78,308 |
+| 4 | [0xbe65…bDb6](https://explorer.test.mezo.org/address/0xbe65D538E887D09a73354172c4411335fC2cbDb6) | 111.5 % | 0.0298 | 2,102.31 | $77,417 |
+| 5 | [0xdeB2…3920](https://explorer.test.mezo.org/address/0xdeB23eb3bCdc2A08cC64c45586149Fbd83053920) | 111.7 % | 0.0285 | 2,002.17 | $77,276 |
+| 6 | [0xA506…5D5A](https://explorer.test.mezo.org/address/0xA506b2250B85A0c7dE80DD313A0Db9cD8a655D5A) | 111.8 % | 0.0285 | 2,000.07 | $77,195 |
+| 7 | [0x155c…c92C](https://explorer.test.mezo.org/address/0x155c4E84D2936bEBF3b90f667466e61b9655c92C) | 113.8 % | 0.0290 | 2,002.40 | $75,823 |
+| 8 | [0x6883…C013](https://explorer.test.mezo.org/address/0x68833F0c0e6d3E0B21805627867B86157572C013) | 114.8 % | 0.0292 | 2,002.11 | $75,216 |
+| 9 | [0x3a02…47Cb](https://explorer.test.mezo.org/address/0x3a02A1f0E556420cF7e0626286B29C8D63Ae47Cb) | 115.0 % | 0.0499 | 3,403.57 | $75,028 |
+| 10 | [0x9B69…e83f](https://explorer.test.mezo.org/address/0x9B69f85FEda15a6f2A830A05dFd363339F75e83f) | 117.1 % | 0.0300 | 2,010.45 | $73,716 |
+| 11 | [0xE6C2…D314](https://explorer.test.mezo.org/address/0xE6C29Ea1873853eB9f5968f9513FfD6cE874D314) | 117.1 % | 0.0300 | 2,010.44 | $73,716 |
+| 12 | [0x9353…A5F6](https://explorer.test.mezo.org/address/0x935349725aDd49A855669AD4a9f9D6dA54ffA5F6) | 117.5 % | 0.0300 | 2,003.87 | $73,475 |
+| 13 | [0x02f4…182E](https://explorer.test.mezo.org/address/0x02f472dd2c08a4dAb586aB11BaFb294c27F5182E) | 117.5 % | 0.0300 | 2,002.59 | $73,428 |
+| 14 | [0xE741…2F89](https://explorer.test.mezo.org/address/0xE741dE071fe801913A2f4Fbc53bC4DCcfF422F89) | 117.6 % | 0.0300 | 2,002.04 | $73,408 |
+| 15 | [0x1763…E6D4](https://explorer.test.mezo.org/address/0x1763AA9c496a1E239Afe6458C8B57F2683CcE6D4) | 117.6 % | 0.0300 | 2,002.00 | $73,406 |
 
 ## Redemption queue
 
-Redemptions are possible · 429,248,389 MUSD redeemable · 3 trove(s) below MCR are skipped.
+Redemptions are possible · 429,252,310 MUSD redeemable · 2 trove(s) below MCR are skipped.
 
 | Redeemed MUSD | Troves hit | Troves closed |
 |---:|---:|---:|
 | 10,000 | 5 | 4 |
 | 50,000 | 24 | 23 |
-| 100,000 | 41 | 40 |
+| 100,000 | 40 | 39 |
 | 500,000 | 157 | 156 |
 
 | # | Owner | ICR | Debt (MUSD) | MUSD ahead |
 |---:|---|---:|---:|---:|
-| 1 | [0xE1CB…C007](https://explorer.test.mezo.org/address/0xE1CB426518F06CE90B6F22cdA7f9BA0aef58C007) | 110.3 % | 2,056.14 | 0 |
-| 2 | [0xac89…1b15](https://explorer.test.mezo.org/address/0xac89fFA908D0bD7A9EE78DfAd4b40362d9971b15) | 111.0 % | 3,203.48 | 1,856 |
-| 3 | [0xbe65…bDb6](https://explorer.test.mezo.org/address/0xbe65D538E887D09a73354172c4411335fC2cbDb6) | 112.3 % | 2,102.30 | 4,859 |
-| 4 | [0xdeB2…3920](https://explorer.test.mezo.org/address/0xdeB23eb3bCdc2A08cC64c45586149Fbd83053920) | 112.5 % | 2,002.15 | 6,761 |
-| 5 | [0xA506…5D5A](https://explorer.test.mezo.org/address/0xA506b2250B85A0c7dE80DD313A0Db9cD8a655D5A) | 112.6 % | 2,000.05 | 8,564 |
-| 6 | [0x155c…c92C](https://explorer.test.mezo.org/address/0x155c4E84D2936bEBF3b90f667466e61b9655c92C) | 114.7 % | 2,002.39 | 10,364 |
-| 7 | [0x6883…C013](https://explorer.test.mezo.org/address/0x68833F0c0e6d3E0B21805627867B86157572C013) | 115.6 % | 2,002.09 | 12,166 |
-| 8 | [0x3a02…47Cb](https://explorer.test.mezo.org/address/0x3a02A1f0E556420cF7e0626286B29C8D63Ae47Cb) | 115.9 % | 3,403.53 | 13,968 |
-| 9 | [0x9353…A5F6](https://explorer.test.mezo.org/address/0x935349725aDd49A855669AD4a9f9D6dA54ffA5F6) | 118.3 % | 2,003.85 | 17,172 |
-| 10 | [0x9B69…e83f](https://explorer.test.mezo.org/address/0x9B69f85FEda15a6f2A830A05dFd363339F75e83f) | 117.9 % | 2,010.43 | 18,976 |
-| 11 | [0x02f4…182E](https://explorer.test.mezo.org/address/0x02f472dd2c08a4dAb586aB11BaFb294c27F5182E) | 118.4 % | 2,002.57 | 20,786 |
-| 12 | [0xE741…2F89](https://explorer.test.mezo.org/address/0xE741dE071fe801913A2f4Fbc53bC4DCcfF422F89) | 118.4 % | 2,002.03 | 22,589 |
-| 13 | [0x1763…E6D4](https://explorer.test.mezo.org/address/0x1763AA9c496a1E239Afe6458C8B57F2683CcE6D4) | 118.4 % | 2,001.98 | 24,391 |
-| 14 | [0xE6C2…D314](https://explorer.test.mezo.org/address/0xE6C29Ea1873853eB9f5968f9513FfD6cE874D314) | 117.9 % | 2,010.42 | 26,193 |
-| 15 | [0x2c7F…5b31](https://explorer.test.mezo.org/address/0x2c7FFA7b22B5D75b390f7BCA5D75bE0475C85b31) | 118.5 % | 2,000.58 | 28,003 |
+| 1 | [0xac89…1b15](https://explorer.test.mezo.org/address/0xac89fFA908D0bD7A9EE78DfAd4b40362d9971b15) | 110.2 % | 3,203.51 | 0 |
+| 2 | [0xbe65…bDb6](https://explorer.test.mezo.org/address/0xbe65D538E887D09a73354172c4411335fC2cbDb6) | 111.5 % | 2,102.31 | 3,003 |
+| 3 | [0xdeB2…3920](https://explorer.test.mezo.org/address/0xdeB23eb3bCdc2A08cC64c45586149Fbd83053920) | 111.7 % | 2,002.17 | 4,905 |
+| 4 | [0xA506…5D5A](https://explorer.test.mezo.org/address/0xA506b2250B85A0c7dE80DD313A0Db9cD8a655D5A) | 111.8 % | 2,000.07 | 6,708 |
+| 5 | [0x155c…c92C](https://explorer.test.mezo.org/address/0x155c4E84D2936bEBF3b90f667466e61b9655c92C) | 113.8 % | 2,002.40 | 8,508 |
+| 6 | [0x6883…C013](https://explorer.test.mezo.org/address/0x68833F0c0e6d3E0B21805627867B86157572C013) | 114.8 % | 2,002.11 | 10,310 |
+| 7 | [0x3a02…47Cb](https://explorer.test.mezo.org/address/0x3a02A1f0E556420cF7e0626286B29C8D63Ae47Cb) | 115.0 % | 3,403.57 | 12,112 |
+| 8 | [0x9353…A5F6](https://explorer.test.mezo.org/address/0x935349725aDd49A855669AD4a9f9D6dA54ffA5F6) | 117.5 % | 2,003.87 | 15,316 |
+| 9 | [0x9B69…e83f](https://explorer.test.mezo.org/address/0x9B69f85FEda15a6f2A830A05dFd363339F75e83f) | 117.1 % | 2,010.45 | 17,120 |
+| 10 | [0x02f4…182E](https://explorer.test.mezo.org/address/0x02f472dd2c08a4dAb586aB11BaFb294c27F5182E) | 117.5 % | 2,002.59 | 18,930 |
+| 11 | [0xE741…2F89](https://explorer.test.mezo.org/address/0xE741dE071fe801913A2f4Fbc53bC4DCcfF422F89) | 117.6 % | 2,002.04 | 20,733 |
+| 12 | [0x1763…E6D4](https://explorer.test.mezo.org/address/0x1763AA9c496a1E239Afe6458C8B57F2683CcE6D4) | 117.6 % | 2,002.00 | 22,535 |
+| 13 | [0xE6C2…D314](https://explorer.test.mezo.org/address/0xE6C29Ea1873853eB9f5968f9513FfD6cE874D314) | 117.1 % | 2,010.44 | 24,337 |
+| 14 | [0x2c7F…5b31](https://explorer.test.mezo.org/address/0x2c7FFA7b22B5D75b390f7BCA5D75bE0475C85b31) | 117.7 % | 2,000.60 | 26,147 |
+| 15 | [0x66f9…bc89](https://explorer.test.mezo.org/address/0x66f9368f6Ff8d5B15e9a3dC55858434F598Abc89) | 121.8 % | 2,436.46 | 27,948 |
 
 $ node src/cli.mjs redemption --top 5
-Redemptions possible (TCR ≥ 110 %) · 429,248,390 MUSD redeemable · 3 trove(s) below MCR skipped
+Redemptions possible (TCR ≥ 110 %) · 429,252,310 MUSD redeemable · 2 trove(s) below MCR skipped
 #   owner                                               ICR   debt (MUSD)   MUSD ahead
-1   0xE1CB426518F06CE90B6F22cdA7f9BA0aef58C007    110.34 %      2,056.14           0
-2   0xac89fFA908D0bD7A9EE78DfAd4b40362d9971b15    111.05 %      3,203.48       1,856
-3   0xbe65D538E887D09a73354172c4411335fC2cbDb6    112.33 %      2,102.30       4,859
-4   0xdeB23eb3bCdc2A08cC64c45586149Fbd83053920    112.53 %      2,002.15       6,761
-5   0xA506b2250B85A0c7dE80DD313A0Db9cD8a655D5A    112.65 %      2,000.05       8,564
+1   0xac89fFA908D0bD7A9EE78DfAd4b40362d9971b15    110.26 %      3,203.51           0
+2   0xbe65D538E887D09a73354172c4411335fC2cbDb6    111.53 %      2,102.31       3,003
+3   0xdeB23eb3bCdc2A08cC64c45586149Fbd83053920    111.73 %      2,002.17       4,905
+4   0xA506b2250B85A0c7dE80DD313A0Db9cD8a655D5A    111.85 %      2,000.07       6,708
+5   0x155c4E84D2936bEBF3b90f667466e61b9655c92C    113.88 %      2,002.40       8,508
 
 $ node src/cli.mjs redemption --amount 25000 --top 0
-Redemptions possible (TCR ≥ 110 %) · 429,248,390 MUSD redeemable · 3 trove(s) below MCR skipped
+Redemptions possible (TCR ≥ 110 %) · 429,252,310 MUSD redeemable · 2 trove(s) below MCR skipped
 Redeeming 25,000 MUSD would hit 13 trove(s), closing 12
 
 $ node src/cli.mjs liquidatable --simulate
-3 liquidatable trove(s), 8,070.78 MUSD
-0x03ffb3720214bDB0DB5F5F71b6cE16B008f762d2  ICR 107.93 %  debt 2,197.46  eth_call: would succeed
-0x1234567D6dFe8bd0f0EB6b574c5D0fe41b819BfE  ICR 108.19 %  debt 3,873.11  eth_call: would succeed
-0x4799e9fB361Fb6a85473bB08dA00A4012E02Cf08  ICR 109.59 %  debt 2,000.19  eth_call: would succeed
+2 liquidatable trove(s), 4,056.37 MUSD
+0x4799e9fB361Fb6a85473bB08dA00A4012E02Cf08  ICR 108.80 %  debt 2,000.21  eth_call: would succeed
+0xE1CB426518F06CE90B6F22cdA7f9BA0aef58C007  ICR 109.56 %  debt 2,056.16  eth_call: would succeed
 
-$ node src/cli.mjs keeper
-keeper: 3 target(s); dry-run OK (gas ≈ 717289)
+$ node src/cli.mjs history --blocks 20000
+history: fetching blocks 16459080–16459092
+Blocks 16439093–16459092: 3 liquidation(s) of 3 trove(s), 8,283.23 MUSD debt, 0.112370 BTC · 0 redemption(s), 0.00 MUSD for 0.00000000 BTC across 0 trove(s)
+16459001  2026-10-30 06:34:24 UTC  LIQUIDATION  2,197.48 MUSD debt, 0.029847 BTC coll  troves: 0x03ff…62d2  https://explorer.test.mezo.org/tx/0x6fbdaa8f980aae07e97d6a97ec53d272f0c30c94c215de0eb2231b92220d279e
+16458853  2026-10-30 06:24:12 UTC  LIQUIDATION  3,873.15 MUSD debt, 0.052735 BTC coll  troves: 0x1234…9BfE  https://explorer.test.mezo.org/tx/0xb4b1ed7b85dc19eda5f56ff42465364111afda64361c834d637b2b1d8cb7a280
+16452016  2026-10-29 22:32:18 UTC  LIQUIDATION  2,212.59 MUSD debt, 0.029788 BTC coll  troves: 0xDA04…AaAa  https://explorer.test.mezo.org/tx/0x6d0f1cdb2407fdc572443802dcf48c0451b713d31afb5c40aa4123a5a2a2d68e
 
-$ node src/cli.mjs watch 0xE1CB426518F06CE90B6F22cdA7f9BA0aef58C007 --webhook http://127.0.0.1:8799/hook --format json
-[block 16452116] 🟠 0xE1CB…C007: CRITICAL · ICR 110.3 % · liquidation at BTC $78,807 (0.3 % away) · redemption queue #1, 0 MUSD ahead ⚠️ near the front
-[block 16452116] 2 alert(s)
+$ node src/cli.mjs guard
+0x20b854C2fCB761DF9f18b27cCBfBeD7276070D7B  ICR 137.65 %  trigger 200.00 %  nonce 5  next none  reserve 0.000000 BTC
+
+$ node src/cli.mjs keeper --protect --min-profit 5
+block 16459092: 2 liquidatable, TCR 281.86 %
+keeper: 0x4799e9fB361Fb6a85473bB08dA00A4012E02Cf08 ICR 108.78 % profit ≈ 210.8789 MUSD
+keeper: 0xE1CB426518F06CE90B6F22cdA7f9BA0aef58C007 ICR 109.54 % profit ≈ 211.2616 MUSD
+keeper: 2 target(s); dry-run OK
+protect: no guarded trove below its trigger
+
+$ node src/cli.mjs watch 0xac89fFA908D0bD7A9EE78DfAd4b40362d9971b15 --webhook http://127.0.0.1:8799/hook --format json
+[block 16459094] 🟠 0xac89…1b15: CRITICAL · ICR 110.2 % · liquidation at BTC $78,308 (0.2 % away) · redemption queue #1, 0 MUSD ahead ⚠️ near the front
+[block 16459094] 2 alert(s)
 webhook (json): delivered status=204 attempts=1
   receiver: signature valid, 2 alert(s)
 
 $ node src/cli.mjs dashboard
-wrote out/index.html (block 16452117)
+wrote out/history.json (30 points)
+wrote out/index.html (block 16459095)
+wrote out/guard.html and guard.js
 
-Keeper liquidation already executed on testnet: https://explorer.test.mezo.org/tx/0x6d0f1cdb2407fdc572443802dcf48c0451b713d31afb5c40aa4123a5a2a2d68e
+Already executed on Mezo Testnet:
+  keeper daemon liquidation  https://explorer.test.mezo.org/tx/0xb4b1ed7b85dc19eda5f56ff42465364111afda64361c834d637b2b1d8cb7a280
+  TroveGuard v2 protect      https://explorer.test.mezo.org/tx/0x084a2b4b964c04c722a4d10d32a04d9b8c838d0d9bd4253f7e7edbd47b052212

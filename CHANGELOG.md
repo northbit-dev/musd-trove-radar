@@ -3,7 +3,7 @@
 All dates are 2026. Transactions are on Mezo Testnet (chain 31611); `tx` links go to explorer.test.mezo.org.
 Commit links are relative to the repository on GitHub.
 
-## v0.2.0: Wave 2
+## v0.2.0: 30 October (Wave 2)
 
 ### Added
 * **Event history** ([f60837f](../../commit/f60837f)): `history` reads TroveManager liquidations and redemptions in
@@ -35,8 +35,19 @@ Commit links are relative to the repository on GitHub.
   ([tx 0xb4b1ed…](https://explorer.test.mezo.org/tx/0xb4b1ed7b85dc19eda5f56ff42465364111afda64361c834d637b2b1d8cb7a280)).
 * **Docs**: [ARCHITECTURE.md](docs/ARCHITECTURE.md), this changelog, an updated deck and video script.
 
+* **Release QA**: a clean clone passes `npm ci`, `npm test` (47 tests, 41 offline), `forge test` against an anvil
+  fork (18 tests), every README command and the Docker dry-run. `keeper --send --max 1` from the clone liquidated a trove
+  ([tx 0x6fbdaa…](https://explorer.test.mezo.org/tx/0x6fbdaa8f980aae07e97d6a97ec53d272f0c30c94c215de0eb2231b92220d279e)).
+  The full `guard.html` flow ran in desktop Firefox
+  ([storePermits](https://explorer.test.mezo.org/tx/0x6feaa87c93222721d1a51dee45563137e422645dc509d639becee26c207a0740))
+  and in Chromium as a Pixel 7
+  ([storePermits](https://explorer.test.mezo.org/tx/0x4cf41276e0ee1bdf7b04a9c9a34fd3134a82630e480929a45fa507ba8019c0c4)).
+  `scripts/guard-e2e.mjs` gained `E2E_BROWSER` and `E2E_DEVICE`. There is a new demo recording, and links are in
+  [docs/links.md](docs/links.md).
+
 ### Changed
 * The dashboard is no longer offline-only: the optional Stability Pool depositor lookup calls the Mezo RPC.
+* `guard.html` no longer overflows on narrow screens (the borrower field is fluid).
 * `loadAccount` also accepts `MEZO_PRIVATE_KEY` and refuses key files inside the repository.
 
 ## v0.1.0: 29 October

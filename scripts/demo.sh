@@ -9,7 +9,9 @@ step node src/cli.mjs snapshot
 step node src/cli.mjs redemption --top 5
 step node src/cli.mjs redemption --amount 25000 --top 0
 step node src/cli.mjs liquidatable --simulate
-step node src/cli.mjs keeper
+step node src/cli.mjs history --blocks 20000
+step node src/cli.mjs guard
+step node src/cli.mjs keeper --protect --min-profit 5
 
 # Alerts: a throwaway local receiver that checks the HMAC signature.
 RECV=$(mktemp); PORT=${DEMO_PORT:-8799}; export TROVE_RADAR_WEBHOOK_SECRET=demo-secret
@@ -20,4 +22,7 @@ WATCH=$(node -e "import('./src/chain.mjs').then(async m=>{const pc=m.client();co
 step node src/cli.mjs watch "$WATCH" --webhook "http://127.0.0.1:$PORT/hook" --format json
 sleep 0.5; cat "$RECV"
 step node src/cli.mjs dashboard
-echo; echo "Keeper liquidation already executed on testnet: https://explorer.test.mezo.org/tx/0x6d0f1cdb2407fdc572443802dcf48c0451b713d31afb5c40aa4123a5a2a2d68e"
+echo
+echo "Already executed on Mezo Testnet:"
+echo "  keeper daemon liquidation  https://explorer.test.mezo.org/tx/0xb4b1ed7b85dc19eda5f56ff42465364111afda64361c834d637b2b1d8cb7a280"
+echo "  TroveGuard v2 protect      https://explorer.test.mezo.org/tx/0x084a2b4b964c04c722a4d10d32a04d9b8c838d0d9bd4253f7e7edbd47b052212"

@@ -132,5 +132,25 @@
   {
     "label": "Keeper daemon (keeper --loop --min-profit 215 --send): liquidates 0x1234…BfE (ICR 107.42 %, 3,873.15 MUSD debt, reward 200 MUSD + 0.000265 BTC ≈ 220.80 MUSD); three troves below the minimum skipped, block 16458853",
     "hash": "0xb4b1ed7b85dc19eda5f56ff42465364111afda64361c834d637b2b1d8cb7a280"
+  },
+  {
+    "label": "Release QA from a clean clone (keeper --send --max 1): liquidates 0x03ff…62d2 (ICR 107.07 %, 2,197.48 MUSD debt, profit ≈ 211.76 MUSD), block 16459001",
+    "hash": "0x6fbdaa8f980aae07e97d6a97ec53d272f0c30c94c215de0eb2231b92220d279e"
+  },
+  {
+    "label": "Release QA, guard.html in desktop Firefox: storePermits (wallet-signed RepayMUSD 100 → AddColl 0.002 from nonce 5)",
+    "hash": "0x6feaa87c93222721d1a51dee45563137e422645dc509d639becee26c207a0740"
+  },
+  {
+    "label": "Release QA, guard.html in desktop Firefox: cancel after configure, depositMUSD, storePermits, withdraw and withdrawMUSD",
+    "hash": "0x3822104d409adf09b6c563004ac24c05c7a05de8a47614fcbbe5c667e34f5625"
+  },
+  {
+    "label": "Release QA, guard.html in Chromium as a Pixel 7: storePermits (wallet-signed RepayMUSD 100 → AddColl 0.002 from nonce 5)",
+    "hash": "0x4cf41276e0ee1bdf7b04a9c9a34fd3134a82630e480929a45fa507ba8019c0c4"
+  },
+  {
+    "label": "Release QA, guard.html in Chromium as a Pixel 7: cancel after configure, depositMUSD, storePermits, withdraw and withdrawMUSD",
+    "hash": "0x12c97b25c59914fa5f231f951c7ae7d3e3a199eae596fbb27f17c813bf6ae868"
   }
 ]

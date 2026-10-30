@@ -27,7 +27,7 @@ The keeper has liquidated a real trove on Mezo Testnet (chain ID 31611):
 | Gas used | 433,977 |
 | Result | Trove status 3 (closed by liquidation); the keeper received the 200 MUSD gas compensation plus the collateral bonus |
 
-The keeper first ran `liquidate()` as an `eth_call` and broadcast only after the simulation succeeded. The same transaction is listed on the dashboard (`proofs.json`). A second liquidation came from the daemon (`keeper --loop --min-profit 215 --send`, [`0xb4b1ed…a280`](https://explorer.test.mezo.org/tx/0xb4b1ed7b85dc19eda5f56ff42465364111afda64361c834d637b2b1d8cb7a280)). It liquidated the only trove whose reward cleared the minimum, about 220.80 MUSD, skipped three that paid about 211 MUSD, and recovered on its own from an RPC error in its first round. To run your own keeper, with or without Docker, see [docs/run-a-keeper.md](docs/run-a-keeper.md).
+The keeper first ran `liquidate()` as an `eth_call` and broadcast only after the simulation succeeded. The same transaction is listed on the dashboard (`proofs.json`). A second liquidation came from the daemon (`keeper --loop --min-profit 215 --send`, [`0xb4b1ed…a280`](https://explorer.test.mezo.org/tx/0xb4b1ed7b85dc19eda5f56ff42465364111afda64361c834d637b2b1d8cb7a280)). It liquidated the only trove whose reward cleared the minimum, about 220.80 MUSD, skipped three that paid about 211 MUSD, and recovered on its own from an RPC error in its first round. The release QA ran `keeper --send --max 1` from a clean clone and liquidated one more trove ([`0x6fbdaa…279e`](https://explorer.test.mezo.org/tx/0x6fbdaa8f980aae07e97d6a97ec53d272f0c30c94c215de0eb2231b92220d279e), block 16459001). To run your own keeper, with or without Docker, see [docs/run-a-keeper.md](docs/run-a-keeper.md).
 
 ## Snapshot from Mezo Testnet (block 16458901, 2026-10-30)
 - 354 active troves, TCR 281.9 %; Recovery Mode would trigger at BTC $41,765 (a 46.8 % drop)
@@ -210,6 +210,7 @@ In JS, `signLadder(account, { firstNonce, deadline, rungs: [{ kind, amount }, �
 
 ### Use it
 ```sh
+git submodule update --init                    # forge-std (or clone with --recursive)
 forge build
 anvil --fork-url https://rpc.test.mezo.org --chain-id 31611 &
 forge test --fork-url http://127.0.0.1:8545     # 14 fork tests, 3 fuzz tests, 3 invariants
@@ -234,7 +235,7 @@ Every transaction is simulated before the wallet is asked to sign, and each one 
 
 ![TroveGuard in the browser](docs/guard.png)
 
-`scripts/guard-e2e.mjs` drives the page end to end in headless Chromium against Mezo Testnet. It injects an EIP-1193 test wallet that forwards each request to Node, where the key from `MEZO_KEY_FILE` signs it, so the key never reaches the page. The wallet starts on chain 1 so the chain switch is tested too. `E2E_FLOW` picks the steps (default `configure,depositMUSD,store,withdraw,withdrawMUSD,cancel`; empty for read-only). The UI transactions are listed in `proofs.json`, including a `protect` that executed a rung signed through the page. Limitation: it was tested with this injected wallet only, not with a browser extension such as MetaMask.
+`scripts/guard-e2e.mjs` drives the page end to end in a headless browser against Mezo Testnet. It injects an EIP-1193 test wallet that forwards each request to Node, where the key from `MEZO_KEY_FILE` signs it, so the key never reaches the page. The wallet starts on chain 1 so the chain switch is tested too. `E2E_FLOW` picks the steps (default `configure,depositMUSD,store,withdraw,withdrawMUSD,cancel`; empty for read-only). The UI transactions are listed in `proofs.json`, including a `protect` that executed a rung signed through the page. `E2E_BROWSER` picks `chromium` (default), `firefox` or `webkit`, and `E2E_DEVICE` emulates a Playwright device such as `"Pixel 7"`. For v0.2.0 the full flow ran in desktop Firefox and in Chromium as a Pixel 7. Limitation: it was tested with this injected wallet only, not with a browser extension such as MetaMask.
 
 ### Security
 Not audited, testnet only. [SECURITY.md](SECURITY.md) has the threat model (leaked signatures, front-running, the oracle, nonce consumption, reentrancy) and lists what the guard does not protect against. [docs/security/static-analysis.md](docs/security/static-analysis.md) has the Slither results: no High or Medium findings, and every remaining finding is justified.
