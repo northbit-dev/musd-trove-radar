@@ -5,3 +5,4 @@ out/
 forge-out/
 forge-cache/
 broadcast/*/31337/
+cache/

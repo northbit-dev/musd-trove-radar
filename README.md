@@ -177,12 +177,17 @@ In JS, `signLadder(account, { firstNonce, deadline, rungs: [{ kind, amount }, �
 ```sh
 forge build
 anvil --fork-url https://rpc.test.mezo.org --chain-id 31611 &
-forge test --fork-url http://127.0.0.1:8545     # 14 fork tests
+forge test --fork-url http://127.0.0.1:8545     # 14 fork tests, 3 fuzz tests, 3 invariants
 node src/cli.mjs guard                          # every guarded trove and whether it is protectable
 node src/cli.mjs keeper --protect [--send]      # liquidations + TroveGuard top-ups (dry-run unless --send)
 node scripts/troveguard-live.mjs deploy|setup|protect   # testnet-only deploy and end-to-end demo
 ```
 Mezo's price oracle is a chain precompile that anvil can't run. The fork tests therefore mock the oracle that `PriceFeed` wraps (`latestRoundData`), and everything else runs against real forked MUSD contracts. Run without a fork, `forge test` skips the suite. The tests cover the trigger and the exact boundary, top-ups that actually raise ICR on chain, single use and replay (including a direct replay against MUSD), the ladder surviving an external nonce spend, stale nonces, foreign signatures, owner-only withdraw and cancel, an insufficient reserve, an expired permit, an inactive trove and a reentrant keeper. For repay mode they cover a repayment that lowers debt and raises ICR, a mixed AddColl → RepayMUSD → AddColl ladder, an insufficient MUSD reserve, a swapped kind, and `cancel` refunding MUSD.
+
+Fuzz tests try arbitrary triggers, tips, kinds, amounts, reserves, deadlines and prices. They check that a successful `protect` spends exactly the rung plus the tip and never more than the reserve, that it pays only the trove and the caller, and that a revert moves nothing. A handler-based invariant suite runs random sequences of deposits, withdrawals, mixed ladders, cancels, price moves and keeper calls across three borrowers. After every step, the reserves must still add up to the guard's BTC and MUSD balances, and no permit may be usable after `cancel`. `.gas-snapshot` records gas per test, and CI (`.github/workflows/contracts.yml`) runs everything against an anvil fork.
+
+### Security
+Not audited, testnet only. [SECURITY.md](SECURITY.md) has the threat model (leaked signatures, front-running, the oracle, nonce consumption, reentrancy) and lists what the guard does not protect against. [docs/security/static-analysis.md](docs/security/static-analysis.md) has the Slither results: no High or Medium findings, and every remaining finding is justified.
 
 ## Demo
 `scripts/demo.sh` runs a read-only tour of the CLI. A recording is in `docs/demo/` (asciinema `.cast`, plus a plain-text transcript).
