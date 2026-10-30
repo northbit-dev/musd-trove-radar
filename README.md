@@ -40,7 +40,8 @@ The keeper first ran `liquidate()` as an `eth_call` and broadcast only after the
 npm install
 node src/cli.mjs snapshot            # Markdown report (+ out/snapshot.json, out/snapshot.md)
 node src/cli.mjs snapshot --json     # machine-readable
-node src/cli.mjs dashboard           # out/index.html, self-contained static page with trove lookup
+node src/cli.mjs dashboard           # out/index.html, static page with trends, Stability Pool and trove lookup
+node src/cli.mjs dashboard --backfill 24   # seed out/history.json from archive state when it has < 2 rows
 node src/cli.mjs redemption          # front of the redemption queue + depth table
 node src/cli.mjs redemption 0xAddr --amount 25000   # your queue position + what a 25k redemption would hit
 node src/cli.mjs history [--blocks 100000] [--json]   # liquidations and redemptions from TroveManager events
@@ -76,6 +77,15 @@ Blocks 16158138–16458137: 1 liquidation(s) of 1 trove(s), 2,212.59 MUSD debt, 
 ```
 
 The first line above is the keeper's own liquidation. The dashboard shows the latest 20 entries under **Recent activity**, with explorer links for every transaction and trove. If the RPC is unavailable the dashboard is still built, without that section.
+
+## Dashboard
+`dashboard` writes `out/index.html`, a single static page with no external assets. Besides the snapshot it shows:
+
+* **Trends.** Every build appends one row to `out/history.json` (block, time, TCR, price, troves, debt, liquidatable count and debt, Stability Pool deposits and BTC). Rows are deduplicated by block and capped at 5,000. Inline SVG charts show TCR against the 150 % CCR line and the liquidatable count. With fewer than two rows the second chart falls back to troves liquidated per day from the event history, and a third chart shows MUSD redeemed per day from events. `--backfill N` fills an empty or one-row history with N earlier snapshots read from archive state, spread over `--backfill-span` blocks (default 100,000). `--history FILE` moves the file.
+* **Stability Pool.** Total deposits, coverage of liquidatable debt, the BTC the pool holds for depositors (`getCollateralBalance`), and the BTC the pool gained from each liquidation in the event history. The gain is measured as the pool's `StabilityPoolCollateralBalanceUpdated` balance after the transaction minus the balance before it, because MUSD's `Liquidation` event does not split the offset from the redistribution. A depositor field calls `getCompoundedMUSDDeposit` and `getDepositorCollateralGain` live over the Mezo RPC. This lookup is the page's only network request.
+* **Trove lookup with guard status.** The lookup now also says whether the address has an armed TroveGuard (trigger, BTC and MUSD reserves, next rung, whether `protect` would run now) and links to `guard.html?borrower=…`. Guard status is read at the same block as the snapshot.
+
+CI (`.github/workflows/dashboard.yml`) keeps `out/history.json` and `out/events.json` between runs with `actions/cache`. On a cache miss it rebuilds them with `--backfill 24` and from the event history.
 
 ## Alerts and webhooks
 `watch` evaluates each borrower once per interval. It sends an alert only when something changes:
@@ -113,13 +123,13 @@ When a secret is set, JSON deliveries carry `x-trove-radar-timestamp` and `x-tro
 * `src/analyze.mjs` builds the report, including Stability Pool coverage of liquidatable debt and the health level per borrower.
 * `src/events.mjs` fetches and decodes TroveManager events in block windows, groups them per transaction and keeps the `out/events.json` cache.
 * `src/alerts.mjs` and `src/webhook.mjs` handle alert evaluation, change detection, payload formats, signing and delivery.
-* `src/render.mjs` produces Markdown and a self-contained HTML dashboard: no external assets, and the trove lookup runs in the browser over the data embedded in the page.
+* `src/render.mjs` produces Markdown and the HTML dashboard: no external assets, the trove lookup runs over data embedded in the page, and only the Stability Pool depositor lookup calls the RPC. `src/history.mjs` keeps `history.json` and the per-day event buckets, and `src/charts.mjs` draws the inline SVG charts.
 * `contracts/TroveGuard.sol` + `src/guard.mjs`: the on-chain top-up guard and its keeper side (targets via `status()`, insert hints via `HintHelpers.getApproxHint` + `SortedTroves.findInsertPosition`, dry-run before send).
 * `src/web/guard-app.mjs` is the browser wallet app for TroveGuard. `src/guard-page.mjs` bundles it with esbuild into `out/guard.html` + `out/guard.js`, and `src/permits.mjs` holds the EIP-712 and ladder code shared with the CLI.
 * `src/keeper.mjs` simulates liquidations first and only broadcasts with `--send`. It refuses to send unless the chain ID is 31611 (Mezo Testnet).
 
 ## Tests
-`npm test` runs 34 Node tests (TroveGuard's Foundry tests are described under [TroveGuard](#troveguard)): 28 offline tests and 6 live, read-only tests against Mezo Testnet. The offline tests cover the maths, the redemption queue and simulation, alert diffing, event alerts and their deduplication, the payload formats, signatures, webhook delivery and retries against a local HTTP server, and TroveGuard ladder signing against the Solidity typehashes, event decoding against real Mezo Testnet logs (`test/fixtures/`), window halving, retries and the incremental cache, plus the browser guard page (ladder and reserve maths, no remote scripts or key material in `guard.html`/`guard.js`). The live tests check that:
+`npm test` runs 41 Node tests (TroveGuard's Foundry tests are described under [TroveGuard](#troveguard)): 35 offline tests and 6 live, read-only tests against Mezo Testnet. The offline tests cover the maths, the redemption queue and simulation, alert diffing, event alerts and their deduplication, the payload formats, signatures, webhook delivery and retries against a local HTTP server, and TroveGuard ladder signing against the Solidity typehashes, event decoding against real Mezo Testnet logs (`test/fixtures/`), window halving, retries and the incremental cache, plus the browser guard page (ladder and reserve maths, no remote scripts or key material in `guard.html`/`guard.js`), and the dashboard history, charts, Stability Pool gain maths and embedded guard status. The live tests check that:
 * our off-chain ICR **equals** on-chain `getCurrentICR` for a random sample of troves
 * the `SortedTroves` tail is among our riskiest troves
 * every trove we flag as liquidatable passes an `eth_call` liquidation, and a healthy trove reverts

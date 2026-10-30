@@ -13,6 +13,8 @@ import { queuePosition, simulateRedemption } from './redemption.mjs';
 import { evaluate, diff, describe, eventAlerts } from './alerts.mjs';
 import { formatPayload, sendWebhook } from './webhook.mjs';
 import { syncEvents, summarize } from './events.mjs';
+import { historyRow, mergeHistory, readHistory, writeHistory, backfillBlocks } from './history.mjs';
+import { GUARD } from './config.mjs';
 import { describeEvent } from './render.mjs';
 
 const [cmd = 'snapshot', ...rest] = process.argv.slice(2);
@@ -37,7 +39,7 @@ const cmds = {
     process.stdout.write(flag('json') ? toJSON(report) + '\n' : markdown(report));
   },
   async dashboard() {
-    const { report } = await load();
+    const { pc, report } = await load();
     fs.mkdirSync(out, { recursive: true });
     const proofsFile = new URL('../proofs.json', import.meta.url);
     const proofs = fs.existsSync(proofsFile) ? JSON.parse(fs.readFileSync(proofsFile, 'utf8')) : [];
@@ -45,8 +47,24 @@ const cmds = {
     try {
       activity = await syncEvents(client(), { blocks: BigInt(opt('blocks', 100_000)), toBlock: report.block, file: `${out}/events.json` });
     } catch (e) { console.error(`history unavailable: ${e.shortMessage || e.message}`); }
+    const histFile = opt('history', `${out}/history.json`);
+    let rows = readHistory(histFile);
+    const backfill = Number(opt('backfill', 0));
+    if (rows.length < 2 && backfill > 0) {
+      for (const b of backfillBlocks(Number(report.block), Number(opt('backfill-span', 100_000)), backfill)) {
+        try {
+          const sys = await fetchSystem(pc, { blockNumber: BigInt(b) });
+          rows = mergeHistory(rows, historyRow(analyze(sys, await fetchTroves(pc, sys))));
+        } catch (e) { console.error(`backfill block ${b}: ${e.shortMessage || e.message}`); }
+      }
+    }
+    rows = mergeHistory(rows, historyRow(report));
+    writeHistory(histFile, rows);
+    let guards = [];
+    try { guards = GUARD ? await guardTargets(pc) : []; } catch (e) { console.error(`guard status unavailable: ${e.shortMessage || e.message}`); }
     const g = await writeGuardPage(out);
-    fs.writeFileSync(`${out}/index.html`, html(report, { proofs, repoUrl: process.env.TROVE_RADAR_REPO_URL, activity, guardPage: Boolean(g) }));
+    fs.writeFileSync(`${out}/index.html`, html(report, { proofs, repoUrl: process.env.TROVE_RADAR_REPO_URL, activity, guardPage: Boolean(g), history: rows, guards }));
+    console.log(`wrote ${shown(histFile)} (${rows.length} points)`);
     console.log(`wrote ${shown(out)}/index.html (block ${report.block})`);
     if (g) console.log(`wrote ${shown(g)} and guard.js`);
   },

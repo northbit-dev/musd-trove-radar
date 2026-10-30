@@ -19,9 +19,9 @@ const call = (c, address, abi, functionName, args = []) => ({ address, abi, func
 const TM = C.troveManager, SP = C.stabilityPool;
 
 /** System-level state in a single multicall, pinned to one block. */
-export async function fetchSystem(pc) {
-  const blockNumber = await pc.getBlockNumber();
-  const [price, count, mcr, ccr, sysColl, sysDebt, spDeposits, musdSupply, rate] = await pc.multicall({
+export async function fetchSystem(pc, { blockNumber } = {}) {
+  blockNumber ??= await pc.getBlockNumber();
+  const [price, count, mcr, ccr, sysColl, sysDebt, spDeposits, musdSupply, rate, spColl] = await pc.multicall({
     blockNumber, allowFailure: false,
     contracts: [
       call(pc, C.priceFeed.address, C.priceFeed.abi, 'fetchPrice'),
@@ -33,12 +33,13 @@ export async function fetchSystem(pc) {
       call(pc, SP.address, SP.abi, 'getTotalMUSDDeposits'),
       call(pc, C.musd.address, C.musd.abi, 'totalSupply'),
       call(pc, C.interestRateManager.address, C.interestRateManager.abi, 'interestRate'),
+      call(pc, SP.address, SP.abi, 'getCollateralBalance'),
     ],
   });
   const block = await pc.getBlock({ blockNumber });
   return {
     blockNumber, timestamp: Number(block.timestamp), price, troveCount: Number(count), mcr, ccr,
-    coll: sysColl, debt: sysDebt, spDeposits, musdSupply, interestRateBps: Number(rate),
+    coll: sysColl, debt: sysDebt, spDeposits, spColl, musdSupply, interestRateBps: Number(rate),
   };
 }
 

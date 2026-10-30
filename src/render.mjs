@@ -1,5 +1,9 @@
 import { fmt, pct } from './math.mjs';
-import { NETWORK } from './config.mjs';
+import { toFunctionSelector } from 'viem';
+import { NETWORK, C } from './config.mjs';
+import { lineChart, barChart } from './charts.mjs';
+import { dailyActivity, spGains } from './history.mjs';
+import { describeRung } from './permits.mjs';
 
 const short = (a) => `${a.slice(0, 6)}…${a.slice(-4)}`;
 const addrLink = (a) => `${NETWORK.explorer}/address/${a}`;
@@ -67,12 +71,36 @@ export function lookupData(r) {
   });
 }
 
+/** Guard status per borrower for the lookup: [armed, trigger %, BTC reserve, MUSD reserve, next rung, protectable, nonce]. */
+export function guardData(guards = []) {
+  const g = {};
+  for (const t of guards) {
+    if (t.error) continue;
+    g[t.borrower.toLowerCase()] = [t.active ?? true, num(t.trigger * 100n, 2), num(t.reserve, 6), num(t.musdReserve, 2), t.amount ? describeRung(t) : null, Boolean(t.protectable), Number(t.nonce)];
+  }
+  return g;
+}
+
+/** Trend charts: TCR and liquidatable troves from history.json, redemptions per day from events. */
+export function trendCharts({ history = [], events = [], toTs } = {}) {
+  const tcr = lineChart(history.map((h) => ({ ts: h.ts, y: h.tcr })), { title: 'Total collateral ratio (%)', unit: ' %', refs: [{ y: 150, label: 'CCR 150 %' }] });
+  const firstTs = Math.min(...[history[0]?.ts, events.find((e) => e.timestamp)?.timestamp].filter(Boolean), toTs ?? Infinity);
+  const days = Math.min(30, Math.max(7, Math.ceil(((toTs ?? firstTs) - firstTs) / 86_400) + 1));
+  const daily = dailyActivity(events, { toTs, days });
+  const liq = history.length >= 2
+    ? lineChart(history.map((h) => ({ ts: h.ts, y: h.liquidatable })), { title: 'Liquidatable troves', min: 0 })
+    : barChart(daily.map((d) => ({ day: d.day, y: d.liquidations, label: `${d.liquidations} trove(s) liquidated` })), { title: 'Troves liquidated per day (from events)' });
+  const red = barChart(daily.map((d) => ({ day: d.day, y: d.redeemed, label: `${d.redemptions} redemption(s), ${d.redeemed.toLocaleString('en-US', { maximumFractionDigits: 2 })} MUSD` })), { title: 'MUSD redeemed per day', unit: ' MUSD' });
+  return `<div class="charts">${tcr}${liq}${red}</div>`;
+}
+
 /**
- * Self-contained static dashboard: no external assets, no network calls.
+ * Self-contained static dashboard: no external assets.
+ * The only network calls are the optional live Stability Pool deposit lookup against the Mezo RPC.
  * One small inline script powers the "check your trove" lookup over embedded data.
  * opts.proofs: [{label, hash}] testnet transactions to link (e.g. keeper liquidations).
  */
-export function html(r, { proofs = [], repoUrl, activity = null, guardPage = false } = {}) {
+export function html(r, { proofs = [], repoUrl, activity = null, guardPage = false, history = [], guards = [] } = {}) {
   const s = r.system;
   const q = r.redemption;
   const maxB = Math.max(1, ...r.buckets.map((b) => b.count));
@@ -88,7 +116,23 @@ export function html(r, { proofs = [], repoUrl, activity = null, guardPage = fal
   const proofList = proofs.length ? `<h2 id="keeper">On-chain proof (Mezo Testnet)</h2><p class="note">Keeper liquidations and every TroveGuard step, with ICR before → after for each <code>protect</code>.</p><ul class="proofs">${proofs.map((p) => `<li>${esc(p.label)}: <a href="${NETWORK.explorer}/tx/${esc(p.hash)}"><code>${esc(p.hash.slice(0, 10))}…${esc(p.hash.slice(-6))}</code></a></li>`).join('')}</ul>` : '';
   const actRows = activity ? activityRows(activity.events) : '';
   const actSection = activity ? `<h2 id="activity">Recent activity</h2><p class="sub">Liquidations and redemptions from TroveManager events, blocks ${activity.fromBlock}–${activity.toBlock}.</p>${actRows ? `<div class="scroll"><table><tr><th>Time</th><th>Event</th><th>Amount</th><th>Troves</th><th>Tx</th></tr>${actRows}</table></div>` : '<p>No liquidations or redemptions in this range.</p>'}` : '';
-  const data = JSON.stringify({ block: String(r.block), ts: r.timestamp, price: num(r.price, 2), mcr: 110, ccr: 150, explorer: NETWORK.explorer, t: lookupData(r) }).replace(/</g, '\\u003c');
+  const events = activity?.events ?? [];
+  const gains = spGains(events);
+  const trends = `<h2 id="trends">Trends</h2><p class="sub">${history.length} build${history.length === 1 ? '' : 's'} in <code>history.json</code>${history.length ? ` since ${when(history[0].ts)}` : ''}${activity ? `; daily activity from TroveManager events, blocks ${activity.fromBlock}–${activity.toBlock}` : ''}.</p>${trendCharts({ history, events, toTs: r.timestamp })}`;
+  const spSection = `<h2 id="sp">Stability Pool</h2><p class="sub">Depositors put MUSD in the pool. When a trove is liquidated the pool burns MUSD equal to its debt and receives its BTC collateral, which depositors can claim.</p>
+<div class="grid">
+${card('Total deposits', `${fmt(s.spDeposits, 0)} MUSD`)}
+${card('Coverage of liquidatable debt', s.spCoverage === null ? 'nothing liquidatable' : s.spCoverage >= 1 ? `${s.spCoverage.toFixed(0)}× (full)` : `${(s.spCoverage * 100).toFixed(1)} %`, s.spCoverage !== null && s.spCoverage < 1 ? 'red' : '', cov(s.spCoverage))}
+${card('BTC held for depositors', `${fmt(s.spColl ?? 0n, 6)} BTC`, '', 'Collateral gains from liquidations not yet claimed')}
+${activity ? card('BTC gained from liquidations', `${fmt(gains.btc, 6)} BTC`, '', `${gains.offset} of ${gains.liquidations} liquidation(s) in blocks ${activity.fromBlock}–${activity.toBlock} were absorbed by the pool${gains.known < gains.liquidations ? `; ${gains.liquidations - gains.known} not yet measured` : ''}`) : ''}
+</div>
+<form class="lookup" id="spf" role="search" style="margin-top:12px"><label for="spaddr" class="k" style="width:100%">Depositor address (live from the Mezo RPC)</label><input id="spaddr" placeholder="0x… depositor address" autocomplete="off" spellcheck="false"><button>Check deposit</button></form>
+<div id="spres" aria-live="polite"></div>`;
+  const data = JSON.stringify({
+    block: String(r.block), ts: r.timestamp, price: num(r.price, 2), mcr: 110, ccr: 150, explorer: NETWORK.explorer, t: lookupData(r),
+    g: guardData(guards), guardPage, rpc: NETWORK.rpc, sp: C.stabilityPool.address,
+    sel: { gain: toFunctionSelector('getDepositorCollateralGain(address)'), dep: toFunctionSelector('getCompoundedMUSDDeposit(address)') },
+  }).replace(/</g, '\\u003c');
   return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>MUSD Trove Radar · ${esc(r.network)}</title><meta name="description" content="Liquidation, Recovery Mode and redemption radar for MUSD troves on Mezo.">
 <style>
@@ -109,12 +153,15 @@ tr.liq td{color:var(--red)}tr.risk td{color:var(--amber)}a{color:var(--blue)}
 .lookup{display:flex;gap:8px;flex-wrap:wrap}.lookup input{flex:1;min-width:280px;padding:9px 11px;border-radius:8px;border:1px solid var(--line);background:var(--card);color:var(--fg);font:14px ui-monospace,monospace}
 .lookup button{padding:9px 16px;border-radius:8px;border:0;background:#3b82f6;color:#fff;font-weight:600;cursor:pointer}#res{margin-top:10px}
 .res{background:var(--card);border:1px solid var(--line);border-left:4px solid var(--green);border-radius:8px;padding:12px}.res.warning{border-left-color:var(--amber)}.res.critical,.res.LIQUIDATABLE{border-left-color:var(--red)}
-details{margin-top:10px;color:var(--mute)}summary{cursor:pointer}.two{display:grid;grid-template-columns:1fr 2fr;gap:18px}@media(max-width:800px){.two{grid-template-columns:1fr}.lbl{width:120px}}
-.proofs{padding-left:18px}.note{color:var(--mute)}footer{color:var(--mute);font-size:12px;margin-top:34px;border-top:1px solid var(--line);padding-top:12px}
+details{margin-top:10px;color:var(--mute)}summary{cursor:pointer}.two{display:grid;grid-template-columns:1fr 2fr;gap:18px}.two>div{min-width:0}@media(max-width:800px){.two{grid-template-columns:1fr}.lbl{width:120px}}
+.charts{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,320px),1fr));gap:12px}.chart{margin:0;background:var(--card);border:1px solid var(--line);border-radius:10px;padding:10px}
+.chart svg{width:100%;height:auto;display:block}.chart figcaption{color:var(--mute);font-size:13px;margin-top:4px}.gl{stroke:var(--line)}.ax{fill:var(--mute);font-size:10px}
+.line{fill:none;stroke:var(--blue);stroke-width:2}.dot{fill:var(--blue)}.ref{stroke:var(--amber);stroke-dasharray:4 4}.ref-l{fill:var(--amber)}.bar-r{fill:var(--blue)}
+.proofs{padding-left:18px;overflow-wrap:anywhere}nav{display:flex;flex-wrap:wrap;gap:4px 0}.note{color:var(--mute)}footer{color:var(--mute);font-size:12px;margin-top:34px;border-top:1px solid var(--line);padding-top:12px}
 </style></head><body><main>
 <header><h1>MUSD Trove Radar</h1><span class="pill ${s.recoveryMode ? 'bad' : 'ok'}">${s.recoveryMode ? 'Recovery Mode' : 'Normal mode'}</span><span class="pill">${esc(r.network)}</span></header>
 <div class="sub">Block ${r.block} · ${when(r.timestamp)} <span id="age"></span> · BTC $${fmt(r.price)}</div>
-<nav aria-label="sections"><a href="#check">Check a trove</a><a href="#dist">Distribution</a><a href="#stress">Stress test</a><a href="#redeem">Redemptions</a><a href="#risk">Riskiest</a>${activity ? '<a href="#activity">Activity</a>' : ''}${proofs.length ? '<a href="#keeper">Proof</a>' : ''}${guardPage ? '<a href="guard.html">TroveGuard app</a>' : ''}</nav>
+<nav aria-label="sections"><a href="#check">Check a trove</a><a href="#trends">Trends</a><a href="#sp">Stability Pool</a><a href="#dist">Distribution</a><a href="#stress">Stress test</a><a href="#redeem">Redemptions</a><a href="#risk">Riskiest</a>${activity ? '<a href="#activity">Activity</a>' : ''}${proofs.length ? '<a href="#keeper">Proof</a>' : ''}${guardPage ? '<a href="guard.html">TroveGuard app</a>' : ''}</nav>
 <h2 id="check">Check a trove</h2>
 <form class="lookup" id="f" role="search"><label for="addr" class="k" style="width:100%">Borrower address</label><input id="addr" name="address" placeholder="0x… borrower address" autocomplete="off" spellcheck="false"><button>Check</button></form>
 <div id="res" aria-live="polite"></div>
@@ -129,6 +176,8 @@ ${card('Redeemable MUSD', q ? `${fmt(q.totalRedeemable, 0)}` : 'n/a', q && !q.en
 ${card('Active troves', s.troves)}
 ${card('Global borrow rate', `${(s.interestRateBps / 100).toFixed(2)} %`)}
 </div>
+${trends}
+${spSection}
 <div class="two"><div><h2 id="dist">ICR distribution</h2>${bars}</div>
 <div><h2 id="stress">BTC price-shock stress test</h2><div class="scroll"><table><tr><th>BTC drop</th><th>Price</th><th>Liquidatable</th><th>Debt (MUSD)</th><th>TCR</th><th>Recovery</th></tr>${st}</table></div></div></div>
 ${q ? `<h2 id="redeem">Redemption queue</h2>
@@ -150,8 +199,19 @@ const t=D.t.find(x=>x[0].toLowerCase()===a.toLowerCase());
 if(!t){r.innerHTML='<div class="res">No active trove for this address at block '+D.block+'.</div>';return}
 const [o,icr,liq,debt,coll,pos,ahead]=t,lvl=icr<D.mcr?'LIQUIDATABLE':icr<120?'critical':icr<D.ccr?'warning':'ok',drop=(D.price-liq)/D.price*100;
 const e=document.createElement('div');e.className='res '+lvl;
-e.innerHTML='<b>'+lvl.toUpperCase()+'</b> · ICR '+f(icr,1)+' % · '+f(coll,4)+' BTC collateral · '+f(debt,2)+' MUSD debt<br>Liquidated if BTC falls to <b>$'+f(liq)+'</b> ('+(drop>0?f(drop,1)+' % below the current price':'already below')+').<br>'+(pos?'Redemption queue: <b>#'+pos+'</b> of '+D.t.filter(x=>x[5]).length+' with '+f(ahead)+' MUSD ahead of you.':'Not in the redemption queue (below 110 %).')+' <a href="'+D.explorer+'/address/'+o+'">explorer</a>';
+e.innerHTML='<b>'+lvl.toUpperCase()+'</b> · ICR '+f(icr,1)+' % · '+f(coll,4)+' BTC collateral · '+f(debt,2)+' MUSD debt<br>Liquidated if BTC falls to <b>$'+f(liq)+'</b> ('+(drop>0?f(drop,1)+' % below the current price':'already below')+').<br>'+(pos?'Redemption queue: <b>#'+pos+'</b> of '+D.t.filter(x=>x[5]).length+' with '+f(ahead)+' MUSD ahead of you.':'Not in the redemption queue (below 110 %).')+' <a href="'+D.explorer+'/address/'+o+'">explorer</a>'+guardLine(o,icr);
 r.replaceChildren(e)}
+function guardLine(o,icr){const g=D.g[o.toLowerCase()],app=D.guardPage?' <a href="guard.html?borrower='+o+'">'+(g&&g[0]?'Manage in the TroveGuard app':'Protect it with TroveGuard')+'</a>':'';
+if(!g||!g[0])return '<br>TroveGuard: <b>not armed</b>.'+app;
+return '<br>TroveGuard: <b>armed</b> · trigger '+f(g[1],2)+' % · reserve '+f(g[2],6)+' BTC'+(g[3]?' + '+f(g[3],2)+' MUSD':'')+' · nonce '+g[6]+' · next rung '+(g[4]||'none stored')+' · '+(g[5]?'<b>protectable now</b>':icr<g[1]?'below trigger but not protectable (no usable rung or reserve)':'not below its trigger')+'.'+app}
+const word=(a)=>'0x'+'0'.repeat(24)+a.slice(2).toLowerCase();
+async function ethCall(data){const r=await fetch(D.rpc,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({jsonrpc:'2.0',id:1,method:'eth_call',params:[{to:D.sp,data},'latest']})});const j=await r.json();if(j.error)throw new Error(j.error.message);return BigInt(j.result)}
+async function spCheck(a){a=(a||'').trim();const r=$('spres');if(!/^0x[0-9a-fA-F]{40}$/.test(a)){r.innerHTML='<div class="res warning">Enter a 0x… address (42 characters).</div>';return}
+r.innerHTML='<div class="res">Reading the Stability Pool…</div>';
+try{const [dep,gain]=await Promise.all([ethCall(D.sel.dep+word(a).slice(2)),ethCall(D.sel.gain+word(a).slice(2))]);const e=document.createElement('div');e.className='res';
+e.innerHTML=dep||gain?'Deposit <b>'+f(Number(dep)/1e18,2)+' MUSD</b> · claimable BTC gain from liquidations <b>'+(gain&&gain<10n**10n?(Number(gain)/1e18).toExponential(2):f(Number(gain)/1e18,8))+' BTC</b> (live, latest block).':'No Stability Pool deposit and no BTC gain for this address.';r.replaceChildren(e)}
+catch(err){r.innerHTML='<div class="res warning">Could not reach the Mezo RPC: '+String(err.message||err).replace(/[<>&]/g,'')+'</div>'}}
+$('spf').addEventListener('submit',(ev)=>{ev.preventDefault();spCheck($('spaddr').value)});
 $('f').addEventListener('submit',(ev)=>{ev.preventDefault();check($('addr').value);history.replaceState(null,'','?address='+$('addr').value.trim())});
 const p=new URLSearchParams(location.search).get('address');if(p){$('addr').value=p;check(p)}
 </script></body></html>`;

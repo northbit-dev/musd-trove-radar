@@ -3,12 +3,13 @@ import path from 'node:path';
 import { decodeEventLog, getAbiItem } from 'viem';
 import { C } from './config.mjs';
 
-const TM = C.troveManager;
+const TM = C.troveManager, SP = C.stabilityPool;
+const SP_BALANCE = getAbiItem({ abi: SP.abi, name: 'StabilityPoolCollateralBalanceUpdated' });
 const NAMES = ['Liquidation', 'TroveLiquidated', 'Redemption', 'TroveUpdated', 'LTermsUpdated'];
 export const EVENT_ABI = NAMES.map((name) => getAbiItem({ abi: TM.abi, name }));
 export const OP = { applyPendingRewards: 0, liquidate: 1, redeemCollateral: 2 };
 export const MAX_WINDOW = 10_000n;
-const BIG = new Set(['debt', 'coll', 'collGas', 'gasComp', 'attempted', 'musd', 'btc', 'fee', 'debtAfter', 'collAfter']);
+const BIG = new Set(['spGain', 'debt', 'coll', 'collGas', 'gasComp', 'attempted', 'musd', 'btc', 'fee', 'debtAfter', 'collAfter']);
 
 export const DEFAULT_CACHE = new URL('../out/events.json', import.meta.url).pathname;
 
@@ -132,6 +133,21 @@ export function mergeEvents(a, b) {
 }
 
 /**
+ * BTC the Stability Pool received in one liquidation: the pool's collateral balance after the liquidation
+ * minus its balance just before it. Null when the pool did not take part (fully redistributed).
+ */
+export async function spGainOf(pc, e) {
+  const logs = (await pc.getLogs({ address: SP.address, event: SP_BALANCE, fromBlock: e.block, toBlock: e.block }))
+    .sort((a, b) => a.logIndex - b.logIndex);
+  const at = logs.findIndex((l) => l.transactionHash === e.tx);
+  if (at < 0) return null;
+  const before = at > 0 ? logs[at - 1].args._newBalance
+    : await pc.readContract({ address: SP.address, abi: SP.abi, functionName: 'getCollateralBalance', blockNumber: e.block - 1n });
+  const after = logs.filter((l) => l.transactionHash === e.tx).at(-1).args._newBalance;
+  return after - before;
+}
+
+/**
  * Events in the last `blocks` blocks (or from `fromBlock`), using the cache so a re-run only asks the RPC
  * for blocks it has not seen. The cache always covers one contiguous range.
  */
@@ -153,6 +169,7 @@ export async function syncEvents(pc, { blocks = 100_000n, fromBlock, toBlock, fi
   for (const b of needTs) ts.set(b, Number((await pc.getBlock({ blockNumber: b })).timestamp));
   for (const e of fresh) e.timestamp = ts.get(e.block);
   const all = mergeEvents(cache?.events ?? [], fresh);
+  for (const e of all) if (e.type === 'liquidation' && e.spGain === undefined) e.spGain = await spGainOf(pc, e).catch(() => undefined);
   const next = {
     address: TM.address,
     fromBlock: cache && cache.fromBlock < lo ? cache.fromBlock : lo,

@@ -39,10 +39,11 @@ export async function guardTargets(pc, guard = guardAt()) {
   const n = await pc.readContract({ ...guard, functionName: 'guardedCount' });
   const borrowers = n ? await pc.readContract({ ...guard, functionName: 'guardedSlice', args: [0n, n] }) : [];
   if (!borrowers.length) return [];
-  const res = await pc.multicall({ allowFailure: true, contracts: borrowers.map((b) => ({ ...guard, functionName: 'status', args: [b] })) });
+  const res = await pc.multicall({ allowFailure: true, contracts: borrowers.flatMap((b) => [{ ...guard, functionName: 'status', args: [b] }, { ...guard, functionName: 'configs', args: [b] }]) });
   return borrowers.map((borrower, i) => {
-    if (res[i].status !== 'success') return { borrower, protectable: false, error: res[i].error?.shortMessage };
-    return parseStatus(borrower, res[i].result);
+    const [st, cfg] = [res[2 * i], res[2 * i + 1]];
+    if (st.status !== 'success') return { borrower, protectable: false, error: st.error?.shortMessage };
+    return { ...parseStatus(borrower, st.result), active: cfg.status === 'success' ? Boolean(cfg.result[3]) : null };
   });
 }
 

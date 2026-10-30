@@ -15,7 +15,7 @@ export function analyze(sys, troves, { top = 15 } = {}) {
     system: {
       troves: troves.length, coll: sys.coll, debt: sys.debt, tcr,
       recoveryMode: tcr < sys.ccr, recoveryTriggerPrice: rmPrice, dropToRecovery: dropTo(sys.price, rmPrice),
-      spDeposits: sys.spDeposits, musdSupply: sys.musdSupply, interestRateBps: sys.interestRateBps,
+      spDeposits: sys.spDeposits, spColl: sys.spColl ?? 0n, musdSupply: sys.musdSupply, interestRateBps: sys.interestRateBps,
       // Share of currently liquidatable debt the Stability Pool can absorb; the rest is redistributed.
       spCoverage: liqDebt === 0n ? null : Number((sys.spDeposits * 10_000n) / liqDebt) / 10_000,
     },

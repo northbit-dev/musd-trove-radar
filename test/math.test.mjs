@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { ONE, MAX_ICR, icr, liquidationPrice, recoveryTriggerPrice, dropTo, bucketize, stress, byRisk, fmt } from '../src/math.mjs';
 import { analyze, troveHealth } from '../src/analyze.mjs';
 import { markdown, html, cov } from '../src/render.mjs';
+import { NETWORK } from '../src/config.mjs';
 
 const E = (n) => BigInt(Math.round(n * 1e6)) * 10n ** 12n; // float -> 1e18
 const MCR = E(1.1), CCR = E(1.5), PRICE = E(80000);
@@ -57,7 +58,7 @@ test('analyze + health + render on synthetic state', () => {
   assert.equal(troveHealth(undefined, sys).level, 'none');
   assert.match(markdown(r), /Liquidatable now \| 1 troves/);
   assert.match(html(r), /<!doctype html>/);
-  assert.ok(!/<script[^>]*src=/i.test(html(r)) && !/https?:\/\/(?!explorer)/.test(html(r).replace(/<a [^>]*>/g, '')), 'dashboard has no external assets');
+  assert.ok(!/<script[^>]*src=/i.test(html(r)) && !/https?:\/\/(?!explorer)/.test(html(r).replace(/<a [^>]*>/g, '').replaceAll(NETWORK.rpc, '')), 'dashboard has no external assets; the Mezo RPC is only used by the live deposit lookup');
 });
 
 test('sort and format helpers', () => {
