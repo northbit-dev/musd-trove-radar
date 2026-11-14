@@ -6,7 +6,8 @@ const entry = new URL('./web/radar-app.mjs', import.meta.url).pathname;
 
 /** The contract functions the live dashboard reads; everything else is left out of the bundle. */
 export const LIVE_READS = {
-  troveManager: ['getTroveOwnersCount', 'MCR', 'CCR', 'getEntireSystemColl', 'getEntireSystemDebt', 'getTroveFromTroveOwnersArray', 'getEntireDebtAndColl', 'getTroveInterestRate'],
+  troveManager: ['getTroveOwnersCount', 'MCR', 'CCR', 'getEntireSystemColl', 'getEntireSystemDebt', 'getTroveFromTroveOwnersArray', 'getEntireDebtAndColl', 'getTroveInterestRate', 'getCurrentICR', 'getTroveStatus'],
+  borrowerOperations: [],
   priceFeed: ['fetchPrice'],
   stabilityPool: ['getTotalMUSDDeposits', 'getCollateralBalance'],
   musd: ['totalSupply'],

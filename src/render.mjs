@@ -191,7 +191,7 @@ tr.liq td{color:var(--red)}tr.risk td{color:var(--amber)}a{color:var(--blue)}
 .b{display:block;height:14px;border-radius:3px;background:#3b82f6;min-width:2px}.b0{background:var(--red)}.b1{background:#f97316}.b2{background:var(--amber)}.n{font-size:13px;width:40px}
 .mini{display:inline-block;height:9px;background:var(--red);border-radius:2px;margin-right:6px;vertical-align:middle;opacity:.7}
 .lookup{display:flex;gap:8px;flex-wrap:wrap}.lookup input{flex:1;min-width:280px;padding:9px 11px;border-radius:8px;border:1px solid var(--line);background:var(--card);color:var(--fg);font:14px ui-monospace,monospace}
-.lookup button{padding:9px 16px;border-radius:8px;border:0;background:#3b82f6;color:#fff;font-weight:600;cursor:pointer}#res{margin-top:10px}
+.lookup button{padding:9px 16px;border-radius:8px;border:0;background:#3b82f6;color:#fff;font-weight:600;cursor:pointer}#res,#hist{margin-top:10px}#hist .chart{max-width:640px}.changes{font-size:13px;color:var(--mute);margin:6px 0 0;padding-left:18px}
 .res{background:var(--card);border:1px solid var(--line);border-left:4px solid var(--green);border-radius:8px;padding:12px}.res.warning{border-left-color:var(--amber)}.res.critical,.res.LIQUIDATABLE{border-left-color:var(--red)}
 details{margin-top:10px;color:var(--mute)}summary{cursor:pointer}.two{display:grid;grid-template-columns:1fr 2fr;gap:18px}.two>div{min-width:0}@media(max-width:800px){.two{grid-template-columns:1fr}.lbl{width:120px}}
 .charts{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,320px),1fr));gap:12px}.chart{margin:0;background:var(--card);border:1px solid var(--line);border-radius:10px;padding:10px}
@@ -205,6 +205,7 @@ details{margin-top:10px;color:var(--mute)}summary{cursor:pointer}.two{display:gr
 <h2 id="check">Check a trove</h2>
 <form class="lookup" id="f" role="search"><label for="addr" class="k" style="width:100%">Borrower address</label><input id="addr" name="address" placeholder="0x… borrower address" autocomplete="off" spellcheck="false"><button>Check</button></form>
 <div id="res" aria-live="polite"></div>
+<div id="hist" aria-live="polite"></div>
 <h2>System</h2>
 <div class="grid" id="live-system">
 ${L.system}
@@ -225,7 +226,7 @@ var D=${data};
 const $=(i)=>document.getElementById(i),f=(n,d=0)=>n.toLocaleString('en-US',{minimumFractionDigits:d,maximumFractionDigits:d});
 function showAge(){const a=$('age');if(!a)return;const m=Math.round((Date.now()/1000-D.ts)/60);a.textContent=m>=0?'('+(m<1?'just now':m<90?m+' min ago':m<2880?Math.round(m/60)+' h ago':Math.round(m/1440)+' days ago')+')':''}showAge();setInterval(showAge,30000);
 function check(a){a=(a||'').trim();const r=$('res');if(!/^0x[0-9a-fA-F]{40}$/.test(a)){r.innerHTML='<div class="res warning">Enter a 0x… address (42 characters).</div>';return}
-const t=D.t.find(x=>x[0].toLowerCase()===a.toLowerCase());
+const t=D.t.find(x=>x[0].toLowerCase()===a.toLowerCase());window.showHistory?.(a);
 if(!t){r.innerHTML='<div class="res">No active trove for this address at block '+D.block+'.</div>';return}
 const [o,icr,liq,debt,coll,pos,ahead]=t,lvl=icr<D.mcr?'LIQUIDATABLE':icr<120?'critical':icr<D.ccr?'warning':'ok',drop=(D.price-liq)/D.price*100;
 const e=document.createElement('div');e.className='res '+lvl;

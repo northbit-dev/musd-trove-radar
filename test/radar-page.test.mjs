@@ -31,3 +31,14 @@ test('radar.js bundles without node built-ins, only reads, and talks to the Mezo
   assert.doesNotMatch(js, /privateKey|PRIVATE_KEY|MEZO_KEY_FILE|eth_sendTransaction/);
   assert.match(js, /live-/);
 });
+
+test('the trove lookup asks radar.js for the ICR history, which reads logs and archive state but never writes', async () => {
+  const page = html(r);
+  assert.match(page, /<div id="hist"/);
+  assert.match(page, /window\.showHistory\?\.\(a\)/);
+  const cfg = browserConfigModule();
+  for (const n of ['getCurrentICR', 'getTroveStatus']) assert.ok(cfg.includes(`"name":"${n}"`), n);
+  const js = await bundleRadarApp();
+  assert.match(js, /trove-history:/);
+  assert.doesNotMatch(js, /eth_sendTransaction|writeContract/);
+});

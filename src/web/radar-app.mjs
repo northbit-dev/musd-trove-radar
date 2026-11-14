@@ -7,6 +7,7 @@ import { analyze } from '../analyze.mjs';
 import { liveParts, statusLine, lookupData, guardData, num } from '../render.mjs';
 import { parseStatus } from '../permits.mjs';
 import { GUARD } from '../config.mjs';
+import { troveHistory, historyChart, summary, freeze } from '../trove-history.mjs';
 
 const EVERY = 60_000;
 const D = window.D;
@@ -72,6 +73,42 @@ async function refresh() {
     }
   } finally { busy = false; }
 }
+
+const HISTORY_DAYS = 3;
+const historyBusy = new Set();
+const blocksPerDay = async () => {
+  const head = await pc.getBlock();
+  const back = await pc.getBlock({ blockNumber: head.number - 10_000n });
+  return { head, perDay: BigInt(Math.round(10_000 * 86_400 / Number(head.timestamp - back.timestamp))) };
+};
+
+// ICR history for the looked-up address; the localStorage cache means a repeat lookup only fetches new blocks.
+window.showHistory = async (address) => {
+  const key = `trove-history:${address.toLowerCase()}`;
+  const el = $('hist');
+  if (historyBusy.has(key)) return;
+  historyBusy.add(key);
+  const fresh = !el.dataset.address || el.dataset.address !== key;
+  el.dataset.address = key;
+  if (fresh) el.innerHTML = `<p class="note">Reading ${HISTORY_DAYS} days of ICR history from the Mezo RPC…</p>`;
+  try {
+    const { head, perDay } = await blocksPerDay();
+    const fromBlock = head.number - perDay * BigInt(HISTORY_DAYS) + 1n;
+    let cache = null;
+    try { cache = JSON.parse(localStorage.getItem(key)); } catch {}
+    const h = await troveHistory(pc, address, { fromBlock, toBlock: head.number, samples: 36, cache, concurrency: 4 });
+    try { localStorage.setItem(key, JSON.stringify(freeze(h))); } catch {}
+    if (el.dataset.address !== key) return;
+    const s = summary(h);
+    const rows = h.changes.slice(-8).reverse().map((c) => `<li>block ${c.block}: ${c.op} (${c.emitter}) · ${c.coll?.toFixed(4) ?? '–'} BTC, ${c.debt?.toFixed(2) ?? '–'} MUSD · <a href="${D.explorer}/tx/${c.tx}">tx</a></li>`).join('');
+    el.innerHTML = `${historyChart(h)}<p class="note">ICR history, blocks ${h.fromBlock}–${h.toBlock}${s ? ` · min ${s.minICR.toFixed(1)} % · max ${s.maxICR.toFixed(1)} %` : ''} · ${h.changes.length} change${h.changes.length === 1 ? '' : 's'}</p>${rows ? `<ul class="changes">${rows}</ul>` : ''}`;
+  } catch (e) {
+    if (el.dataset.address === key) el.innerHTML = `<p class="note">ICR history unavailable: ${clean(e)}</p>`;
+  } finally { historyBusy.delete(key); }
+};
+
+const first = $('addr').value.trim();
+if (/^0x[0-9a-fA-F]{40}$/.test(first)) window.showHistory(first);
 
 snapshotStatus('loading live data from the Mezo RPC…');
 document.documentElement.dataset.source = 'loading';
