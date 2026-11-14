@@ -58,7 +58,7 @@ td.h { font-family:"DejaVu Sans Mono", monospace; font-size:19px; color:#ffd3a1;
     <p>An open-source radar, alert bot, keeper daemon and on-chain trove guard, live on <b>Mezo Testnet</b></p>
     <p class="mut">github.com/northbit-dev/musd-trove-radar · northbit-dev.github.io/musd-trove-radar</p>
   </div>
-  <div class="foot"><span>northbit · v0.2.0</span><span>GPL-3.0</span></div>
+  <div class="foot"><span>northbit · Wave 2 · TroveGuard v3</span><span>GPL-3.0</span></div>
 </section>
 
 <!-- 2 -->
@@ -71,7 +71,7 @@ td.h { font-family:"DejaVu Sans Mono", monospace; font-size:19px; color:#ffd3a1;
     <div class="card loss"><h2>Redemptions</h2><p>Anyone can swap MUSD for BTC. It is taken from the <b>lowest-ratio troves first</b>.</p></div>
   </div>
   <ul>
-    <li>The Mezo app shows your own trove. It does not show your place among the other 352, or how close the system is to Recovery Mode.</li>
+    <li>The Mezo app shows your own trove. It does not show your place among the other 326, or how close the system is to Recovery Mode.</li>
     <li>A warning only helps if you are awake to act on it. Keepers and Stability Pool depositors have no simple view of what is liquidatable and whether it pays.</li>
   </ul>
   <div class="foot"><span>MUSD Trove Radar + TroveGuard</span><span>2</span></div>
@@ -84,11 +84,11 @@ td.h { font-family:"DejaVu Sans Mono", monospace; font-size:19px; color:#ffd3a1;
   <div class="grid2" style="grid-template-columns:1.05fr .95fr;align-items:start">
     <div>
       <ul>
-        <li><b>Radar and history:</b> every trove's ratio, liquidation price, a BTC price-shock stress test, Stability Pool coverage, and trends over time.</li>
+        <li><b>Radar and history:</b> every trove's ratio, liquidation price, a BTC price-shock stress test, Stability Pool coverage, trends, and a 3-day ICR chart per trove.</li>
         <li><b>Redemption queue:</b> your position, the MUSD ahead of you, and what a redemption of X MUSD would hit.</li>
-        <li><b>Alerts:</b> Slack, Discord, Telegram or a signed webhook, on thresholds and when a trove is redeemed or liquidated.</li>
-        <li><b>TroveGuard:</b> pre-signed top-ups or repayments that any keeper can execute below your trigger.</li>
-        <li><b>Keeper daemon:</b> liquidations and guard <code>protect</code> calls, simulated first and sent only when they pay.</li>
+        <li><b>Alerts:</b> a browser watchlist with notifications, Slack, Discord, Telegram or a signed webhook, and a Cloudflare Worker with a Telegram bot and an Atom feed per trove.</li>
+        <li><b>TroveGuard v3:</b> a ladder of pre-signed adjust, top-up and repay steps that any keeper runs below your trigger, up to a target ratio in one call.</li>
+        <li><b>Keeper daemon:</b> liquidations and multi-step guard <code>protect</code> calls, simulated first and sent only when they pay.</li>
       </ul>
     </div>
     <img class="shot" src="radar.png" alt="Dashboard with a trove lookup">
@@ -98,40 +98,40 @@ td.h { font-family:"DejaVu Sans Mono", monospace; font-size:19px; color:#ffd3a1;
 
 <!-- 4 -->
 <section class="slide">
-  <div class="kicker">Live on Mezo Testnet · block 16460269 · BTC $78,042</div>
+  <div class="kicker">Live on Mezo Testnet · block 16775729 · BTC $66,996</div>
   <h1>What the radar sees today</h1>
   <div class="grid4" style="margin-bottom:28px">
-    <div class="card stat"><div class="v">353</div><p>active troves</p></div>
-    <div class="card stat"><div class="v g">280 %</div><p>system collateral ratio</p></div>
-    <div class="card stat"><div class="v">−46.5 %</div><p>BTC drop to Recovery Mode ($41,764)</p></div>
-    <div class="card stat"><div class="v r">3</div><p>liquidatable now, 7,259 MUSD, each checked with <code>eth_call</code></p></div>
+    <div class="card stat"><div class="v">327</div><p>active troves</p></div>
+    <div class="card stat"><div class="v g">240 %</div><p>system collateral ratio</p></div>
+    <div class="card stat"><div class="v">−37.6 %</div><p>BTC drop to Recovery Mode ($41,774)</p></div>
+    <div class="card stat"><div class="v r">65</div><p>troves between 110 and 130&nbsp;%, one bad day from liquidation</p></div>
   </div>
   <div class="grid4">
-    <div class="card stat"><div class="v r">137</div><p>troves between 110 and 150 %</p></div>
-    <div class="card stat"><div class="v r">92</div><p>liquidatable if BTC falls 20 %</p></div>
-    <div class="card stat"><div class="v g">11,877×</div><p>Stability Pool coverage of liquidatable debt</p></div>
-    <div class="card stat"><div class="v">23</div><p>troves a 50,000 MUSD redemption would close</p></div>
+    <div class="card stat"><div class="v r">171</div><p>troves between 110 and 150&nbsp;%</p></div>
+    <div class="card stat"><div class="v r">137</div><p>liquidatable if BTC falls 20 %</p></div>
+    <div class="card stat"><div class="v g">86.2 M</div><p>MUSD in the Stability Pool</p></div>
+    <div class="card stat"><div class="v">7</div><p>troves a 50,000 MUSD redemption would close</p></div>
   </div>
   <div class="foot"><span>MUSD Trove Radar + TroveGuard</span><span>4</span></div>
 </section>
 
 <!-- 5 -->
 <section class="slide">
-  <div class="kicker">TroveGuard v2</div>
-  <h1>Top up or repay automatically, while you sleep</h1>
+  <div class="kicker">TroveGuard v3</div>
+  <h1>One keeper call lifts a trove to your target ratio</h1>
   <div class="flow" style="margin-bottom:34px">
-    <div class="step"><div class="n">1</div><h2>Arm</h2><p>Set a trigger ratio and a keeper tip. Park BTC and/or MUSD in the guard as a reserve.</p></div>
-    <div class="step"><div class="n">2</div><h2>Sign a ladder</h2><p>One EIP-712 permit per rung, for consecutive nonces: <code>AddColl</code> (BTC in) or <code>RepayMUSD</code> (debt down).</p></div>
-    <div class="step"><div class="n">3</div><h2>Protect</h2><p>Below the trigger, anyone calls <code>protect()</code>. One rung is spent, funds only enter your own trove, the caller earns the tip.</p></div>
+    <div class="step"><div class="n">1</div><h2>Arm</h2><p>Set a trigger, a target ratio, max steps per call and a tip. Park BTC and/or MUSD as a reserve.</p></div>
+    <div class="step"><div class="n">2</div><h2>Sign a ladder</h2><p>One EIP-712 permit per step: <code>Adjust</code> (BTC in and debt down at once), <code>AddColl</code> or <code>RepayMUSD</code>.</p></div>
+    <div class="step"><div class="n">3</div><h2>Protect</h2><p>Below the trigger, or near the redemption front, anyone calls <code>protect()</code>. Steps run until the target is reached; funds only enter your own trove.</p></div>
     <div class="step"><div class="n">4</div><h2>Cancel</h2><p><code>cancel</code> refunds every reserve and invalidates every stored permit.</p></div>
   </div>
   <table>
-    <tr><th>Live proof, real oracle, no mocks</th><th>Ratio</th><th>Transaction</th></tr>
-    <tr><td>protect, RepayMUSD</td><td>118.45 % → 123.95 %</td><td class="h">0x950ca982156cc6b3dd1f6e2e69552e00aa19bba9b70765545b3764947d335aa9</td></tr>
-    <tr><td>protect, AddColl</td><td>123.88 % → 131.16 %</td><td class="h">0xc3b2dcde9ad22ebd2d24c4aabf87d45b5e72759cc4a615565f53c65cdde6e554</td></tr>
-    <tr><td>protect of a permit signed in guard.html</td><td>131.23 % → 137.62 %</td><td class="h">0x084a2b4b964c04c722a4d10d32a04d9b8c838d0d9bd4253f7e7edbd47b052212</td></tr>
+    <tr><th>Live on Mezo Testnet, real oracle, no mocks</th><th>Ratio</th><th>Transaction</th></tr>
+    <tr><td>v3 protect: Adjust → AddColl → Repay in one call</td><td>117.52 % → 133.17 %</td><td class="h">0xcd33fad9ea83f6c9698ad9872ec098b9c45441b2d2a9742aa94467e3f91282eb</td></tr>
+    <tr><td>v3 storePermits, three-step ladder</td><td></td><td class="h">0x9b9579f9efda0fedbf62d6457c76dbc6f8e96e84d4d4f8ab5325916471ebb19a</td></tr>
+    <tr><td>v2 protect of a permit signed in guard.html</td><td>131.23 % → 137.62 %</td><td class="h">0x084a2b4b964c04c722a4d10d32a04d9b8c838d0d9bd4253f7e7edbd47b052212</td></tr>
   </table>
-  <p class="mut" style="font-size:22px;margin-top:18px">Contract 0xa67c9bbcd4350b24e33e25e2ebd7c80c04409df7, verified · 14 fork tests, 3 fuzz tests, 3 invariants · Slither reviewed · SECURITY.md</p>
+  <p class="mut" style="font-size:22px;margin-top:18px">v3 contract 0xe96e1f552aac9828f4c24e75f4aa895dcf7f5fb9, verified · 25 fork tests, 5 fuzz tests, 7 invariants · Slither reviewed · threat table in SECURITY.md</p>
   <div class="foot"><span>MUSD Trove Radar + TroveGuard</span><span>5</span></div>
 </section>
 
@@ -144,12 +144,12 @@ td.h { font-family:"DejaVu Sans Mono", monospace; font-size:19px; color:#ffd3a1;
     <div>
       <h2>guard.html</h2>
       <ul>
-        <li>Any EIP-1193 wallet: switch to Mezo Testnet, see your trove and guard, arm it, fund it, sign the ladder in one <code>storePermits</code> tx.</li>
+        <li>Any EIP-1193 wallet: switch to Mezo Testnet, see your trove and guard, arm it, fund it, and build the ladder step by step with the expected ratio after each one and a net-debt check, stored in one <code>storePermits</code> tx.</li>
         <li>Every transaction is simulated before the wallet prompt. No keys, nothing loaded from other origins.</li>
       </ul>
       <h2 style="margin-top:26px">Keeper daemon</h2>
       <ul>
-        <li><code>keeper --loop --min-profit 5 --send</code>: <code>eth_call</code> before every send, backoff, JSON logs, Docker image.</li>
+        <li><code>keeper --loop --min-profit 5 --send</code>: <code>eth_call</code> before every send, a tip per step, hints recomputed for the trove after all steps, backoff, JSON logs, Docker image.</li>
         <li>On testnet it liquidated a 3,873 MUSD trove, skipped three below its minimum profit, and recovered from an RPC error by itself.</li>
       </ul>
     </div>
@@ -181,14 +181,14 @@ td.h { font-family:"DejaVu Sans Mono", monospace; font-size:19px; color:#ffd3a1;
   <h1>Wave 2 shipped. Mainnet is the next step.</h1>
   <div class="grid2">
     <div class="card"><h2>Done in Wave 2</h2><ul>
-      <li>Event history and event alerts</li>
-      <li>TroveGuard v2 with repay mode, live on testnet</li>
-      <li>Fuzz tests, invariants and a Slither review</li>
-      <li>The browser guard page</li>
-      <li>Dashboard history and the Stability Pool view</li>
-      <li>Keeper daemon and Docker image</li></ul></div>
+      <li>TroveGuard v3: Adjust steps, target ratio, redemption trigger, live and verified</li>
+      <li>Per-trove ICR history and a browser watchlist</li>
+      <li>Alert worker: Telegram bot, Atom feed, signed webhook</li>
+      <li>guard.html and the keeper for multi-step ladders</li>
+      <li>v3 fuzz tests, invariants and a Slither review</li>
+      <li>77 Node tests, 37 Foundry tests on a Mezo fork</li></ul></div>
     <div class="card"><h2>Next</h2><ul>
-      <li>Hosted alerts with per-user subscriptions</li>
+      <li>A hosted alert worker anyone can subscribe to</li>
       <li>A keeper network: many operators, no duplicate sends</li>
       <li>Mempool alerts for incoming redemptions</li>
       <li>An external audit of TroveGuard</li>

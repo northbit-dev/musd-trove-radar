@@ -8,5 +8,5 @@ Both need Playwright (`npm i playwright`), which is not a project dependency.
 ```bash
 node docs/deck/render.cjs docs/deck/deck.html docs/deck.pdf /tmp/deck-png
 node docs/deck/record-demo.cjs        # writes vid/*.webm and meta.json
-ffmpeg -ss 0.65 -i vid/<file>.webm -c:v libx264 -crf 23 -pix_fmt yuv420p -r 30 -movflags +faststart -an docs/demo.mp4
+ffmpeg -ss <offset from meta.json> -i vid/<file>.webm -c:v libx264 -crf 23 -pix_fmt yuv420p -r 30 -movflags +faststart -an docs/demo.mp4
 ```

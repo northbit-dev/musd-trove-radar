@@ -307,7 +307,7 @@ Every transaction is simulated before the wallet is asked to sign, and each one 
 Not audited, testnet only. [SECURITY.md](SECURITY.md) has the threat model (leaked signatures, front-running, the oracle, nonce consumption, reentrancy) and lists what the guard does not protect against. [docs/security/static-analysis.md](docs/security/static-analysis.md) has the Slither results: no High or Medium findings, and every remaining finding is justified.
 
 ## Demo
-* [docs/demo.mp4](docs/demo.mp4): a 93-second captioned walkthrough (no audio) of the live dashboard, `guard.html` and a `protect` transaction on the explorer.
+* [docs/demo.mp4](docs/demo.mp4): a 100-second captioned walkthrough (no audio) of the live dashboard, the watchlist, the v3 `guard.html` and a three-step `protect` transaction on the explorer.
 * [docs/deck.pdf](docs/deck.pdf): the 8-slide pitch deck. The HTML source and the scripts that render the deck and record the video are in [docs/deck/](docs/deck/).
 * `scripts/demo.sh` runs a read-only tour of the CLI. A recording is in `docs/demo/` (asciinema `.cast`, plus a plain-text transcript).
 
