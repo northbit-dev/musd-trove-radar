@@ -20,6 +20,8 @@ import { toWei } from './profit.mjs';
 import { makeLogger } from './log.mjs';
 import { loop } from './daemon.mjs';
 import { describeEvent } from './render.mjs';
+import { standaloneSvg } from './charts.mjs';
+import { troveHistory, historyChart, summary as historySummary, freeze } from './trove-history.mjs';
 
 const [cmd = 'snapshot', ...rest] = process.argv.slice(2);
 const flag = (n) => rest.includes(`--${n}`);
@@ -81,6 +83,28 @@ const cmds = {
     const s = summarize(h.events);
     console.log(`Blocks ${h.fromBlock}–${h.toBlock}: ${s.liquidations} liquidation(s) of ${s.liquidatedTroves} trove(s), ${fmt(s.liquidatedDebt)} MUSD debt, ${fmt(s.liquidatedColl, 6)} BTC · ${s.redemptions} redemption(s), ${fmt(s.redeemedMusd)} MUSD for ${fmt(s.redeemedBtc, 8)} BTC across ${s.redeemedTroves} trove(s)`);
     for (const e of events.slice(0, Number(opt('top', 50)))) console.log(describeEvent(e));
+  },
+  async 'trove-history'() {
+    const who = rest.find((x) => /^0x[0-9a-fA-F]{40}$/.test(x));
+    if (!who) { console.log('usage: trove-history 0xAddr [--days 7] [--samples 48] [--svg file] [--json]'); return; }
+    const pc = client();
+    const head = await pc.getBlock();
+    const back = await pc.getBlock({ blockNumber: head.number - 10_000n });
+    const perDay = Math.round(10_000 * 86_400 / Number(head.timestamp - back.timestamp));
+    const span = BigInt(Math.round(Number(opt('days', 7)) * perDay));
+    const fromBlock = head.number > span ? head.number - span + 1n : 0n;
+    const file = `${out}/trove-history-${who.toLowerCase()}.json`;
+    const cache = fs.existsSync(file) ? JSON.parse(fs.readFileSync(file, 'utf8')) : null;
+    const h = await troveHistory(pc, getAddress(who), { fromBlock, toBlock: head.number, samples: Number(opt('samples', 48)), cache });
+    fs.mkdirSync(out, { recursive: true });
+    fs.writeFileSync(file, JSON.stringify(freeze(h)));
+    if (opt('svg')) fs.writeFileSync(opt('svg'), standaloneSvg(historyChart(h)));
+    if (flag('json')) { process.stdout.write(JSON.stringify({ ...freeze(h), summary: historySummary(h) }, null, 2) + '\n'); return; }
+    const s = historySummary(h);
+    console.log(`${h.borrower}  blocks ${h.fromBlock}–${h.toBlock} (${opt('days', 7)} days, ${h.points.length} samples, fetched ${h.fetched.map(([a, b]) => `${a}–${b}`).join(', ') || 'nothing new'})`);
+    console.log(s ? `ICR min ${s.minICR.toFixed(2)} %  max ${s.maxICR.toFixed(2)} %  latest ${s.latestICR.toFixed(2)} %` : 'no active trove in this range');
+    for (const c of h.changes) console.log(`  block ${c.block}  ${c.op.padEnd(19)} ${c.emitter.padEnd(18)} coll ${c.coll?.toFixed(6) ?? '-'} BTC  debt ${c.debt?.toFixed(2) ?? '-'} MUSD  ${NETWORK.explorer}/tx/${c.tx}`);
+    if (opt('svg')) console.log(`chart: ${shown(opt('svg'))}`);
   },
   async liquidatable() {
     const { pc, report } = await load();

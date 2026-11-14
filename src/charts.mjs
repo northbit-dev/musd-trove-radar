@@ -59,3 +59,11 @@ export function barChart(bars, { title, unit = '' } = {}) {
   }).join('');
   return frame(title, `${bars.length} days, total ${tick(total)}${unit}, busiest day ${tick(Math.max(...bars.map((b) => b.y)))}${unit}`, `${a.svg}${rects}`);
 }
+
+const SVG_STYLE = '.gl{stroke:#e3e6ef}.ax{fill:#5b6278;font:10px system-ui,sans-serif}.line{fill:none;stroke:#1d5fd1;stroke-width:2}.dot{fill:#1d5fd1}.ref{stroke:#b86e00;stroke-dasharray:4 4}.ref-l{fill:#b86e00}.mark{stroke:#5b6278;stroke-dasharray:2 3}.bar-r{fill:#1d5fd1}';
+
+/** A chart figure as a standalone SVG file (own namespace, styles and white background). */
+export function standaloneSvg(figure) {
+  const svg = figure.match(/<svg[\s\S]*<\/svg>/)[0];
+  return svg.replace('<svg ', '<svg xmlns="http://www.w3.org/2000/svg" ').replace(/(<svg[^>]*>)/, `$1<style>${SVG_STYLE}</style><rect width="100%" height="100%" fill="#fff"/>`) + '\n';
+}

@@ -88,6 +88,14 @@ test('chart draws ICR with MCR/CCR lines and one marker per change', async () =>
   assert.match(svg, /adjust \(BorrowerOperations\)/);
 });
 
+test('standalone SVG carries its namespace and styles', async () => {
+  const { standaloneSvg, lineChart } = await import('../src/charts.mjs');
+  const svg = standaloneSvg(lineChart([{ ts: 1, y: 1 }, { ts: 2, y: 2 }], { title: 't' }));
+  assert.match(svg, /^<svg xmlns="http:\/\/www.w3.org\/2000\/svg" viewBox/);
+  assert.match(svg, /<style>.*\.line\{/);
+  assert.doesNotMatch(svg, /figure|figcaption/);
+});
+
 test('a cache that starts later than the requested range is not reused', async () => {
   const bo = C.borrowerOperations.address;
   const logs = [log(bo, 5_000, 0, 0, 1)];
