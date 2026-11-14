@@ -18,6 +18,8 @@ Commit links are relative to the repository on GitHub.
   reaches over up to five rungs, and a redemption-front trigger with a bounded on-chain walk of the queue. 11 fork
   tests. The keeper, `guard` CLI, dashboard and `guard.html` understand v3: step list, target ICR, redemption
   buffer and max rungs, with an ICR path and net-debt check in the preview. v2 stays deployed and supported.
+* **TroveGuard v3 review**: 2 fuzz tests and 4 handler-based invariants for mixed ladders and multi-rung calls, Slither
+  results with reasons, a v3 threat table in SECURITY.md and [docs/REVIEW-v3.md](docs/REVIEW-v3.md).
 
 ### Changed
 * **Live dashboard**: `index.html` now reads the MUSD contracts from the Mezo RPC in the browser (`out/radar.js`,

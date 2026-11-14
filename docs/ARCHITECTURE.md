@@ -53,6 +53,8 @@ flowchart LR
   the range they cover. For each liquidation it also measures the Stability Pool's BTC gain from
   `StabilityPoolCollateralBalanceUpdated`.
 * **`guard.mjs`** lists guarded borrowers with `guardedSlice` and multicalls `status` and `configs`.
+* **`trove-history.mjs`** finds one trove's changes in its `TroveUpdated` events, then reads price, ICR, debt and
+  collateral from archive state at those blocks and at evenly spaced samples, with a per-trove cache.
 
 ## Derive layer
 Pure functions with no I/O, covered by the offline tests:
@@ -73,6 +75,11 @@ Pure functions with no I/O, covered by the offline tests:
   The EIP-712 permit code (`permits.mjs`) is shared with the CLI, so the browser and Node sign identical digests.
 * **Alerts** (`alerts.mjs`, `webhook.mjs`): evaluate thresholds and events, diff against saved state, and deliver
   signed payloads with retries.
+* **Watchlist** (`web/watchlist.mjs`): per-trove thresholds in `localStorage`. The dashboard evaluates them with the
+  same `alerts.mjs` rule as `watch` and raises browser notifications on level changes.
+* **Alert worker** (`worker/worker.mjs`): a dependency-free Cloudflare Worker that reads the chain on a cron and sends
+  Telegram messages and webhooks signed like `webhook.mjs`, plus an Atom feed and a JSON status per trove.
+  `worker/dev.mjs` runs the same code under Node.
 * **Keeper** (`keeper.mjs`, `daemon.mjs`, `log.mjs`): dry-runs each target, applies `--min-profit`, broadcasts only
   with `--send` on chain 31611, and runs in a backoff loop with JSON logs. See [run-a-keeper.md](run-a-keeper.md).
 
@@ -87,7 +94,7 @@ Funds can only go to the borrower's trove, to the caller as the tip, or back to 
 `contracts/TroveGuardV3.sol` adds `AdjustTrove` permits, a target ICR reached over up to `maxRungs` rungs in one call,
 and a redemption-front trigger (bounded walk of 40 troves from `SortedTroves.getLast()`). The JS side picks v2 or v3
 from `version` in the guard JSON: `permits.mjs` builds the typed data and the Permit struct, `guard.mjs` runs the
-keeper, and `web/guard-app.mjs` renders the step list.
+keeper, and `web/guard-app.mjs` renders the step list. [REVIEW-v3.md](REVIEW-v3.md) reviews the v3 contract.
 
 ## Trust boundaries
 * Keys are read only by `keeper.mjs#loadAccount`, from `MEZO_PRIVATE_KEY` or a chmod 600 file outside the repo.

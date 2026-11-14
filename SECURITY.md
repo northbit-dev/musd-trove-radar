@@ -6,8 +6,8 @@
 
 The guard holds each borrower's BTC reserve, MUSD reserve and stored permits. Funds can leave it in only three ways:
 
-1. **Into the borrower's own trove**, through `BorrowerOperationsSignatures.addCollWithSignature` or `repayMUSDWithSignature`. MUSD verifies the borrower's EIP-712 signature, and the trove credited is always the signer's.
-2. **As the fixed BTC tip to `msg.sender` of `protect`.** The borrower chose the tip in `configure`.
+1. **Into the borrower's own trove**, through `BorrowerOperationsSignatures.addCollWithSignature`, `repayMUSDWithSignature` or (v3) `adjustTroveWithSignature` with `collWithdrawal = 0`, `isDebtIncrease = false` and `recipient = borrower`. MUSD verifies the borrower's EIP-712 signature, and the trove credited is always the signer's.
+2. **As the fixed BTC tip to `msg.sender` of `protect`.** The borrower chose the tip in `configure`. In v3 it is paid once per rung spent.
 3. **Back to the borrower**, through `withdraw`, `withdrawMUSD` or `cancel`, which always pay `msg.sender` from `msg.sender`'s own reserve.
 
 The guard makes no arbitrary calls, holds no token approvals, and takes no caller-supplied calldata. The hints are forwarded to `SortedTroves`, which validates them.
@@ -26,6 +26,19 @@ The guard makes no arbitrary calls, holds no token approvals, and takes no calle
 | **Draining another borrower** | One borrower's `protect` spends another borrower's reserve. | Reserves are per borrower and are debited before the call. The invariants check that the sum of reserves always equals the guard's BTC and MUSD balances. The fuzz test checks the exact amounts on every successful `protect`. |
 | **Griefing by tip size** | A borrower sets an absurd tip. | That only spends the borrower's own reserve. If the reserve can't cover the tip, `protect` reverts. |
 
+## TroveGuard v3
+
+v3 (`contracts/TroveGuardV3.sol`) keeps everything above and adds `Adjust` rungs, several rungs per call toward a target ICR, and a redemption-front trigger. Those add the following threats. [docs/REVIEW-v3.md](docs/REVIEW-v3.md) is the full review.
+
+| Threat | What happens | Mitigation |
+| --- | --- | --- |
+| **Keeper griefing with wrong hints** | A keeper passes hints that put the trove in the wrong place, or that make MUSD's insert walk expensive. | Hints only steer `SortedTroves`, which re-validates them; a bad hint costs the keeper gas, not the borrower. Every rung must raise ICR, otherwise `ICRNotImproved` reverts the **whole** call, so no rung, reserve debit or tip survives a failed step. |
+| **Gas of the redemption walk** | The redemption trigger walks `SortedTroves` from the back to count the MUSD ahead of the trove. | The walk stops after `MAX_WALK = 40` troves or as soon as `redemptionBuffer` is reached. A trove further back is treated as not near the front. The walk is read-only. |
+| **Signature reuse after `cancel`** | Stored v3 permits outlive a `cancel` and are spent later. | `cancel` bumps the generation, and permits are stored per generation, so every stored rung is orphaned at once. `invariant_noUsablePermitAfterCancel` checks this for v3 too. A rung signed but never stored can still be submitted straight to MUSD, and as in v2 that only helps the borrower. |
+| **Reentrancy through the tip recipient** | The keeper is a contract that re-enters when it receives the tip. | `protect`, `withdraw`, `withdrawMUSD`, `depositMUSD` and `cancel` are `nonReentrant`. The tip for all rungs is sent once, after the last rung and after every state write. |
+| **A target-ICR loop draining the reserve** | A high target makes one call spend the whole ladder. | One call spends at most `maxRungs` rungs, and `configure` only accepts 1–5. Each rung is checked against both reserves before anything moves. A rung that is missing, expired, unfunded or would push net debt under `minNetDebt` ends the loop quietly instead of reverting the rungs already spent. The fuzz test checks that the reserves drop by exactly the spent rungs plus one tip per rung. |
+| **`Adjust` used to take funds out** | A stored `Adjust` permit withdraws collateral or borrows more. | The guard always calls `adjustTroveWithSignature` with `collWithdrawal = 0`, `isDebtIncrease = false` and `recipient = borrower`, and those values are part of the signed digest. A permit signed with anything else fails MUSD's signature check. |
+
 ## What the guard does **not** protect against
 
 * **No keeper running.** Protection only happens if someone calls `protect`. The radar's keeper does, but nothing guarantees uptime.
@@ -38,8 +51,8 @@ The guard makes no arbitrary calls, holds no token approvals, and takes no calle
 
 ## Verification
 
-* 14 fork unit tests, 3 fuzz tests and 3 handler-based invariants run against real Mezo Testnet contracts on an anvil fork (`forge test --fork-url http://127.0.0.1:8545`).
-* Slither: see [docs/security/static-analysis.md](docs/security/static-analysis.md). There are no High or Medium findings, and each of the remaining findings is justified.
+* 25 fork unit tests (14 for v2, 11 for v3), 5 fuzz tests and 7 handler-based invariants run against real Mezo Testnet contracts on an anvil fork (`forge test --fork-url http://127.0.0.1:8545`).
+* Slither: see [docs/security/static-analysis.md](docs/security/static-analysis.md). For v2 there are no High or Medium findings. For v3 Slither reports two High and one Medium result; all three are false positives, explained there, and each of the remaining findings is justified.
 * CI runs locally: `forge build`, `forge test` against an anvil fork of Mezo Testnet, `forge snapshot --diff .gas-snapshot` for gas, and `npm test` for the Node code.
 
 ## Reporting
