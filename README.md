@@ -46,6 +46,7 @@ node src/cli.mjs dashboard --backfill 24   # seed out/history.json from archive 
 node src/cli.mjs redemption          # front of the redemption queue + depth table
 node src/cli.mjs redemption 0xAddr --amount 25000   # your queue position + what a 25k redemption would hit
 node src/cli.mjs history [--blocks 100000] [--json]   # liquidations and redemptions from TroveManager events
+node src/cli.mjs trove-history 0xAddr [--days 7] [--svg icr.svg] [--json]   # one trove's ICR over time, with every change
 node src/cli.mjs liquidatable --simulate   # list ICR<MCR troves, dry-run liquidate() via eth_call
 node src/cli.mjs watch 0xAddr [0xAddr…] --interval 60 --warn 1.5 --crit 1.2 --redeem-warn 50000 \
   [--lookback 1000] [--webhook URL --format json|slack|discord|telegram --chat-id ID] [--state file]
@@ -81,6 +82,19 @@ Blocks 16158138–16458137: 1 liquidation(s) of 1 trove(s), 2,212.59 MUSD debt, 
 ```
 
 The first line above is the keeper's own liquidation. The dashboard shows the latest 20 entries under **Recent activity**, with explorer links for every transaction and trove. If the RPC is unavailable the dashboard is still built, without that section.
+
+### ICR history per trove
+`trove-history 0xAddr` shows how close one trove has been to liquidation and what moved it. It reads `TroveUpdated` and `TroveLiquidated` for that borrower (indexed topic) from both BorrowerOperations and TroveManager in 10,000-block windows, and names each change with the emitter's own operation enum (`open`, `adjust`, `refinance` from BorrowerOperations; `liquidate`, `redeemCollateral`, `applyPendingRewards` from TroveManager). It then reads archive state at evenly spaced blocks and at the blocks just before and after every change: `fetchPrice`, `getCurrentICR`, `getEntireDebtAndColl` and `getTroveStatus`, so the ICR is exact at each sample and every step shows up. The result is cached in `out/trove-history-<address>.json`; the next run only reads blocks it has not seen.
+
+```
+$ node src/cli.mjs trove-history 0x20b854C2fCB761DF9f18b27cCBfBeD7276070D7B --days 3 --svg icr.svg
+0x20b8…0D7B  blocks 16431522–16493753 (3 days, 66 samples, …)
+ICR min 117.83 %  max 137.62 %  latest 135.97 %
+  block 16452553  open       BorrowerOperations coll 0.030000 BTC  debt 2001.80 MUSD  …/tx/0x77d00a…
+  block 16452563  adjust     BorrowerOperations coll 0.032000 BTC  debt 2001.80 MUSD  …/tx/0xf639ce…
+  …
+```
+The two `adjust` rows right after `open` are TroveGuard v1 top-ups; the TroveGuard v2 repayments show up the same way. In the dashboard, the trove lookup draws the same chart for the last three days, with a marker per change, and keeps it in `localStorage`, so looking the trove up again only fetches new blocks.
 
 ## Dashboard
 `dashboard` writes `out/index.html` and `out/radar.js`, with no external assets and no CDN.
