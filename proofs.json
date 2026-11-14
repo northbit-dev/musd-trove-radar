@@ -152,5 +152,25 @@
   {
     "label": "Release QA, guard.html in Chromium as a Pixel 7: cancel after configure, depositMUSD, storePermits, withdraw and withdrawMUSD",
     "hash": "0x12c97b25c59914fa5f231f951c7ae7d3e3a199eae596fbb27f17c813bf6ae868"
+  },
+  {
+    "label": "TroveGuard v3 deployed at 0xe96e1f552aac9828f4c24e75f4aa895dcf7f5fb9, block 16775652",
+    "hash": "0x41251cb371218497f2229f44edda3dbd788267129dc85f4bc21f0c82c7601a2d"
+  },
+  {
+    "label": "TroveGuard v3 configure: trigger 250.00 %, target 300.00 %, redemption buffer 0 MUSD, max 3 rungs, tip 0.00001 BTC, BTC reserve 0.00403",
+    "hash": "0x5a22b30a65a5ecca80d82b73992b49ad2930f57d5d594fb2a5ac482cd14ce5be"
+  },
+  {
+    "label": "MUSD approve 40 for TroveGuard v3",
+    "hash": "0x3b6ec2987aec5dd18769c3b7b86e61b9085fe1bce7f358cd48a3df23f9084480"
+  },
+  {
+    "label": "TroveGuard v3 depositMUSD: 40 MUSD reserve",
+    "hash": "0xb3d1e1fa9f92090d1e63e0f93129429d5e4565c08ca05bb0ccc8284b6cfe2a02"
+  },
+  {
+    "label": "TroveGuard v3 storePermits from nonce 5: Adjust +0.002000 BTC −20 MUSD → AddColl 0.002000 BTC → RepayMUSD 20 MUSD",
+    "hash": "0x9b9579f9efda0fedbf62d6457c76dbc6f8e96e84d4d4f8ab5325916471ebb19a"
   }
 ]
