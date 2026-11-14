@@ -3,8 +3,11 @@ import assert from 'node:assert/strict';
 import { parseEther } from 'viem';
 import {
   KIND, REASON, permitTypedData, toPermit, parseStatus, parseConfig, describeRung,
-  parseSteps, malformed, icrPath, rungsPerCall, reserveNeeded, musdNeeded,
+  parseSteps, malformed, icrPath, rungsPerCall, reserveNeeded, musdNeeded, guardRow, debtFloorRung,
 } from '../src/permits.mjs';
+import { guardData } from '../src/render.mjs';
+
+const E = (x) => parseEther(String(x));
 
 const borrower = '0x00000000000000000000000000000000000000b0';
 const base = { borrower, nonce: 7n, deadline: 99n, chainId: 31611, verifyingContract: '0xD757e3646AF370b15f32EB557F0F8380Df7D639e' };
@@ -59,4 +62,21 @@ test('a target ICR spends rungs until the estimate reaches it, capped by maxRung
   assert.equal(rungsPerCall(path, { targetICR: parseEther('1.4'), maxRungs: 5 }), 2);
   assert.equal(rungsPerCall(path, { targetICR: parseEther('1.7'), maxRungs: 3 }), 3);
   assert.equal(rungsPerCall(path, { targetICR: parseEther('9'), maxRungs: 5 }), 4);
+});
+
+test('guardRow: v3 status takes trigger, target and maxRungs from configs; dashboard shows the redemption reason', () => {
+  const C3 = '0x' + 'c'.repeat(40);
+  const next = { kind: 2, deadline: 9n, btc: E(0.002), musd: E(100), signature: '0x12' };
+  const st = { status: 'success', result: { protectable: true, reason: 2, icr: E(1.7), musdAhead: E(1500), nonce: 3n, next, reserve: E(0.01), musdReserve: E(200) } };
+  const cfg = { status: 'success', result: [E(1.6), E(0.00001), E(2.2), E(5000), 1n, 3, true] };
+  const row = guardRow(C3, st, cfg);
+  assert.equal(row.trigger, E(1.6));
+  assert.deepEqual(guardData([row])[C3], [true, 160, 0.01, 200, 'Adjust +0.002000 BTC −100 MUSD', true, 3, 'redemption front', 220, 3, 1500]);
+  assert.equal(guardRow(C3, { status: 'failure', error: { shortMessage: 'boom' } }).error, 'boom');
+});
+
+test('debtFloorRung: finds the first repayment that would take net debt under 1,800 MUSD', () => {
+  const rungs = parseSteps('adjust:0.002/50,add:0.002,repay:100', parseEther);
+  assert.equal(debtFloorRung({ debt: E(2102) }, rungs), 2);
+  assert.equal(debtFloorRung({ debt: E(2200) }, rungs), -1);
 });

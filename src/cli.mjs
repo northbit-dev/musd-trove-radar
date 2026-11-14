@@ -7,6 +7,7 @@ import { analyze, toJSON } from './analyze.mjs';
 import { markdown, html } from './render.mjs';
 import { runKeeper, loadAccount, runProtectKeeper, guardTargets } from './keeper.mjs';
 import { describeRung } from './guard.mjs';
+import { reasonName } from './permits.mjs';
 import { writeGuardPage } from './guard-page.mjs';
 import { writeRadarScript } from './radar-page.mjs';
 import { fmt } from './math.mjs';
@@ -202,7 +203,7 @@ const cmds = {
     const rows = await guardTargets(pc);
     if (!rows.length) { console.log('TroveGuard: no guarded troves'); return; }
     for (const t of rows) {
-      console.log(t.error ? `${t.borrower}  status() failed: ${t.error}` : `${t.borrower}  ICR ${fmt(t.icr * 100n)} %  trigger ${fmt(t.trigger * 100n)} %  nonce ${t.nonce}  next ${t.amount ? describeRung(t) : 'none'}  reserve ${fmt(t.reserve, 6)} BTC${t.musdReserve ? ` + ${fmt(t.musdReserve)} MUSD` : ''}${t.protectable ? '  → PROTECTABLE' : ''}`);
+      console.log(t.error ? `${t.borrower}  status() failed: ${t.error}` : `${t.borrower}  ICR ${fmt(t.icr * 100n)} %  trigger ${fmt(t.trigger * 100n)} %${t.targetICR ? `  target ${fmt(t.targetICR * 100n)} % ×${t.maxRungs}` : ''}${t.musdAhead != null ? `  ${fmt(t.musdAhead)} MUSD ahead` : ''}  nonce ${t.nonce}  next ${t.btc || t.musd || t.amount ? describeRung(t) : 'none'}  reserve ${fmt(t.reserve, 6)} BTC${t.musdReserve ? ` + ${fmt(t.musdReserve)} MUSD` : ''}${t.protectable ? `  → PROTECTABLE (${reasonName(t.reason)})` : ''}`);
     }
   },
 };

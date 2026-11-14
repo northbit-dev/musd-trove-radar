@@ -3,7 +3,7 @@ import { toFunctionSelector } from 'viem';
 import { NETWORK, C } from './config.mjs';
 import { lineChart, barChart } from './charts.mjs';
 import { dailyActivity, spGains } from './history.mjs';
-import { describeRung } from './permits.mjs';
+import { describeRung, reasonName } from './permits.mjs';
 
 const short = (a) => `${a.slice(0, 6)}…${a.slice(-4)}`;
 const addrLink = (a) => `${NETWORK.explorer}/address/${a}`;
@@ -71,12 +71,12 @@ export function lookupData(r) {
   });
 }
 
-/** Guard status per borrower for the lookup: [armed, trigger %, BTC reserve, MUSD reserve, next rung, protectable, nonce]. */
+/** Guard status per borrower for the lookup: [armed, trigger %, BTC reserve, MUSD reserve, next rung, protectable, nonce, reason, target %, max rungs, MUSD ahead]. */
 export function guardData(guards = []) {
   const g = {};
   for (const t of guards) {
     if (t.error) continue;
-    g[t.borrower.toLowerCase()] = [t.active ?? true, num(t.trigger * 100n, 2), num(t.reserve, 6), num(t.musdReserve, 2), t.amount ? describeRung(t) : null, Boolean(t.protectable), Number(t.nonce)];
+    g[t.borrower.toLowerCase()] = [t.active ?? true, num(t.trigger * 100n, 2), num(t.reserve, 6), num(t.musdReserve, 2), t.btc || t.musd || t.amount ? describeRung(t) : null, Boolean(t.protectable), Number(t.nonce), t.reason ? reasonName(t.reason) : null, t.targetICR ? num(t.targetICR * 100n, 2) : null, t.maxRungs ?? 1, t.musdAhead == null ? null : num(t.musdAhead, 0)];
   }
   return g;
 }
@@ -237,7 +237,7 @@ e.innerHTML='<b>'+lvl.toUpperCase()+'</b> · ICR '+f(icr,1)+' % · '+f(coll,4)+'
 r.replaceChildren(e)}
 function guardLine(o,icr){const g=D.g[o.toLowerCase()],app=D.guardPage?' <a href="guard.html?borrower='+o+'">'+(g&&g[0]?'Manage in the TroveGuard app':'Protect it with TroveGuard')+'</a>':'';
 if(!g||!g[0])return '<br>TroveGuard: <b>not armed</b>.'+app;
-return '<br>TroveGuard: <b>armed</b> · trigger '+f(g[1],2)+' % · reserve '+f(g[2],6)+' BTC'+(g[3]?' + '+f(g[3],2)+' MUSD':'')+' · nonce '+g[6]+' · next rung '+(g[4]||'none stored')+' · '+(g[5]?'<b>protectable now</b>':icr<g[1]?'below trigger but not protectable (no usable rung or reserve)':'not below its trigger')+'.'+app}
+return '<br>TroveGuard: <b>armed</b> · trigger '+f(g[1],2)+' % · reserve '+f(g[2],6)+' BTC'+(g[3]?' + '+f(g[3],2)+' MUSD':'')+' · nonce '+g[6]+' · next rung '+(g[4]||'none stored')+(g[8]?' · target '+f(g[8],2)+' % in up to '+g[9]+' rungs':'')+(g[10]!=null?' · '+f(g[10])+' MUSD ahead in the redemption queue':'')+' · '+(g[5]?'<b>protectable now</b>'+(g[7]?' ('+g[7]+')':''):icr<g[1]?'below trigger but not protectable (no usable rung or reserve)':'not below its trigger')+'.'+app}
 const word=(a)=>'0x'+'0'.repeat(24)+a.slice(2).toLowerCase();
 async function ethCall(data){const r=await fetch(D.rpc,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({jsonrpc:'2.0',id:1,method:'eth_call',params:[{to:D.sp,data},'latest']})});const j=await r.json();if(j.error)throw new Error(j.error.message);return BigInt(j.result)}
 async function spCheck(a){a=(a||'').trim();const r=$('spres');if(!/^0x[0-9a-fA-F]{40}$/.test(a)){r.innerHTML='<div class="res warning">Enter a 0x… address (42 characters).</div>';return}

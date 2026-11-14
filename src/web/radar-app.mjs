@@ -5,7 +5,7 @@ import { createPublicClient, http } from 'viem';
 import { mezoTestnet, fetchSystem, fetchTroves } from '../chain.mjs';
 import { analyze } from '../analyze.mjs';
 import { liveParts, statusLine, lookupData, guardData, num } from '../render.mjs';
-import { parseStatus } from '../permits.mjs';
+import { guardRow } from '../permits.mjs';
 import { GUARD } from '../config.mjs';
 import { troveHistory, historyChart, summary, freeze } from '../trove-history.mjs';
 import * as watchlist from './watchlist.mjs';
@@ -30,11 +30,7 @@ async function guards() {
   const borrowers = n ? await pc.readContract({ ...GUARD, functionName: 'guardedSlice', args: [0n, n] }) : [];
   if (!borrowers.length) return [];
   const res = await pc.multicall({ allowFailure: true, contracts: borrowers.flatMap((b) => [{ ...GUARD, functionName: 'status', args: [b] }, { ...GUARD, functionName: 'configs', args: [b] }]) });
-  return borrowers.map((borrower, i) => {
-    const [st, cfg] = [res[2 * i], res[2 * i + 1]];
-    if (st.status !== 'success') return { borrower, error: true };
-    return { ...parseStatus(borrower, st.result), active: cfg.status === 'success' ? Boolean(cfg.result[3]) : null };
-  });
+  return borrowers.map((borrower, i) => guardRow(borrower, res[2 * i], res[2 * i + 1]));
 }
 
 function setStatus(html) {

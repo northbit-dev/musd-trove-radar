@@ -3,7 +3,7 @@ import { mezoTestnet } from './chain.mjs';
 import { NETWORK, C, GUARD } from './config.mjs';
 import { protectProfit, fmtMusd } from './profit.mjs';
 import { textLog } from './log.mjs';
-import { KIND, permitTypedData as typedData, describeRung, parseStatus, parseConfig, toPermit, rungAmounts, reasonName, REASON } from './permits.mjs';
+import { KIND, permitTypedData as typedData, describeRung, parseStatus, guardRow, toPermit, rungAmounts, reasonName, REASON } from './permits.mjs';
 
 const TM = C.troveManager, BOS = C.borrowerOperationsSignatures;
 
@@ -41,14 +41,7 @@ export async function guardTargets(pc, guard = guardAt()) {
   const borrowers = n ? await pc.readContract({ ...guard, functionName: 'guardedSlice', args: [0n, n] }) : [];
   if (!borrowers.length) return [];
   const res = await pc.multicall({ allowFailure: true, contracts: borrowers.flatMap((b) => [{ ...guard, functionName: 'status', args: [b] }, { ...guard, functionName: 'configs', args: [b] }]) });
-  return borrowers.map((borrower, i) => {
-    const [st, cfg] = [res[2 * i], res[2 * i + 1]];
-    if (st.status !== 'success') return { borrower, protectable: false, error: st.error?.shortMessage };
-    const s = parseStatus(borrower, st.result);
-    if (cfg.status !== 'success') return { ...s, active: null, tip: null };
-    const c = parseConfig(cfg.result);
-    return { ...s, trigger: s.trigger ?? c.trigger, active: Boolean(c.active), tip: c.tip, targetICR: c.targetICR, redemptionBuffer: c.redemptionBuffer, maxRungs: c.maxRungs };
-  });
+  return borrowers.map((borrower, i) => guardRow(borrower, res[2 * i], res[2 * i + 1]));
 }
 
 /** NICR = coll / principal, so added BTC scales it by coll and a repayment by principal. Takes a rung or (kind, amount). */

@@ -75,7 +75,7 @@ test('dashboard: trends, Stability Pool section and guard status embedded for th
     { borrower: B, active: false, protectable: false, trigger: E(2), nonce: 5n, kind: 0, amount: 0n, reserve: 0n, musdReserve: 0n },
     { borrower: '0x' + '3'.repeat(40), error: 'reverted' },
   ];
-  assert.deepEqual(guardData(guards), { [A]: [true, 160, 0.002, 100, 'RepayMUSD 100 MUSD', true, 4], [B]: [false, 200, 0, 0, null, false, 5] });
+  assert.deepEqual(guardData(guards), { [A]: [true, 160, 0.002, 100, 'RepayMUSD 100 MUSD', true, 4, null, null, 1, null], [B]: [false, 200, 0, 0, null, false, 5, null, null, 1, null] });
   const page = html(report, { history: [historyRow(report)], guards, guardPage: true, activity: { fromBlock: 1n, toBlock: 100n, events: [] } });
   for (const id of ['trends', 'sp', 'spf', 'spres']) assert.match(page, new RegExp(`id="${id}"`));
   assert.match(page, /0\.250000 BTC/);

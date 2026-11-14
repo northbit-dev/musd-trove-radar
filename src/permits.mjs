@@ -85,6 +85,15 @@ export function parseConfig(result) {
   return { trigger, tip, targetICR: 0n, redemptionBuffer: 0n, generation, maxRungs: 1, active };
 }
 
+/** One guarded borrower from multicall results of status() and configs(); v3 status has no trigger, configs does. */
+export function guardRow(borrower, st, cfg) {
+  if (st.status !== 'success') return { borrower, protectable: false, error: st.error?.shortMessage || 'status() failed' };
+  const s = parseStatus(borrower, st.result);
+  if (cfg?.status !== 'success') return { ...s, active: null, tip: null };
+  const c = parseConfig(cfg.result);
+  return { ...s, trigger: s.trigger ?? c.trigger, active: Boolean(c.active), tip: c.tip, targetICR: c.targetICR, redemptionBuffer: c.redemptionBuffer, maxRungs: c.maxRungs };
+}
+
 const fmtBtc = (v) => (Number(v) / 1e18).toFixed(6);
 const fmtMusd = (v) => (Number(v) / 1e18).toLocaleString('en-US', { maximumFractionDigits: 2 });
 
@@ -132,6 +141,17 @@ export const malformed = (r) => {
 /** BTC the reserve needs to cover every rung's BTC plus a tip per rung. */
 export const reserveNeeded = (rungs, tip) => rungs.reduce((s, r) => s + tip + rungAmounts(r).btc, 0n);
 export const musdNeeded = (rungs) => rungs.reduce((s, r) => s + rungAmounts(r).musd, 0n);
+
+const MIN_NET_DEBT = 1800n * 10n ** 18n, GAS_COMPENSATION = 200n * 10n ** 18n;
+
+/** Index of the first rung whose repayment would push net debt (debt − 200 MUSD gas reserve) under 1,800 MUSD, else −1; BorrowerOperations reverts it. */
+export function debtFloorRung({ debt }, rungs) {
+  for (let i = 0; i < rungs.length; i++) {
+    debt -= rungAmounts(rungs[i]).musd;
+    if (debt - GAS_COMPENSATION < MIN_NET_DEBT) return i;
+  }
+  return -1;
+}
 
 /** Estimated ICR after each rung, from the trove's coll and debt at `price` (repayment lowers debt). */
 export function icrPath({ coll, debt, price }, rungs) {
