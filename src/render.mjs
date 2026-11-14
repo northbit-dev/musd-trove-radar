@@ -196,7 +196,7 @@ tr.liq td{color:var(--red)}tr.risk td{color:var(--amber)}a{color:var(--blue)}
 details{margin-top:10px;color:var(--mute)}summary{cursor:pointer}.two{display:grid;grid-template-columns:1fr 2fr;gap:18px}.two>div{min-width:0}@media(max-width:800px){.two{grid-template-columns:1fr}.lbl{width:120px}}
 .charts{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,320px),1fr));gap:12px}.chart{margin:0;background:var(--card);border:1px solid var(--line);border-radius:10px;padding:10px}
 .chart svg{width:100%;height:auto;display:block}.chart figcaption{color:var(--mute);font-size:13px;margin-top:4px}.gl{stroke:var(--line)}.ax{fill:var(--mute);font-size:10px}
-.line{fill:none;stroke:var(--blue);stroke-width:2}.dot{fill:var(--blue)}.ref{stroke:var(--amber);stroke-dasharray:4 4}.ref-l{fill:var(--amber)}.bar-r{fill:var(--blue)}
+.line{fill:none;stroke:var(--blue);stroke-width:2}.dot{fill:var(--blue)}.ref{stroke:var(--amber);stroke-dasharray:4 4}.mark{stroke:var(--mute);stroke-dasharray:2 3}.ref-l{fill:var(--amber)}.bar-r{fill:var(--blue)}
 .proofs{padding-left:18px;overflow-wrap:anywhere}nav{display:flex;flex-wrap:wrap;gap:4px 0}.pill.amber{color:var(--amber);border-color:var(--amber)}#status .pill{margin-right:4px}.note{color:var(--mute)}footer{color:var(--mute);font-size:12px;margin-top:34px;border-top:1px solid var(--line);padding-top:12px}
 </style></head><body><main>
 <header><h1>MUSD Trove Radar</h1><span id="live-mode" style="display:contents">${L.mode}</span><span class="pill">${esc(r.network)}</span></header>

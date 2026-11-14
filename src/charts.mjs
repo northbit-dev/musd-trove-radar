@@ -25,10 +25,11 @@ function axes(y, x0, x1) {
 
 /**
  * Line chart over time. points: [{ ts, y }], oldest first. refs: [{ y, label }] dashed reference lines.
+ * marks: [{ ts, label }] event markers on the time axis.
  * Returns an empty-state figure when there are fewer than two points.
  */
-export function lineChart(points, { title, unit = '', refs = [], min, max } = {}) {
-  if (points.length < 2) return frame(title, 'not enough history yet', `<text class="ax" x="${W / 2}" y="${H / 2}" text-anchor="middle">Not enough history yet: ${points.length} point${points.length === 1 ? '' : 's'}. Each dashboard build adds one.</text>`);
+export function lineChart(points, { title, unit = '', refs = [], marks = [], min, max, empty = 'Each dashboard build adds one.' } = {}) {
+  if (points.length < 2) return frame(title, 'not enough history yet', `<text class="ax" x="${W / 2}" y="${H / 2}" text-anchor="middle">Not enough history yet: ${points.length} point${points.length === 1 ? '' : 's'}. ${esc(empty)}</text>`);
   const ys = points.map((p) => p.y);
   const y = scale(min ?? Math.min(...ys), max ?? Math.max(...ys));
   refs = refs.filter((r) => r.y >= y.lo && r.y <= y.hi);
@@ -37,10 +38,12 @@ export function lineChart(points, { title, unit = '', refs = [], min, max } = {}
   const a = axes(y, stamp(t0), stamp(t1));
   const d = points.map((p, i) => `${i ? 'L' : 'M'}${xx(p.ts).toFixed(1)} ${a.yy(p.y).toFixed(1)}`).join('');
   const ref = refs.map((r) => `<line class="ref" x1="${L}" x2="${W - R}" y1="${a.yy(r.y).toFixed(1)}" y2="${a.yy(r.y).toFixed(1)}"/><text class="ax ref-l" x="${W - R - 4}" y="${(a.yy(r.y) - 4).toFixed(1)}" text-anchor="end">${esc(r.label)}</text>`).join('');
+  const shown = marks.filter((m) => m.ts >= t0 && m.ts <= t1);
+  const mk = shown.map((m) => `<line class="mark" x1="${xx(m.ts).toFixed(1)}" x2="${xx(m.ts).toFixed(1)}" y1="${T}" y2="${H - B}"><title>${esc(m.label)} at ${stamp(m.ts)}</title></line>`).join('');
   const last = points.at(-1);
   const lo = Math.min(...points.map((p) => p.y)), hi = Math.max(...points.map((p) => p.y));
   const desc = `${points.length} points from ${stamp(t0)} to ${stamp(t1)}, range ${tick(lo)}–${tick(hi)}${unit}, latest ${tick(last.y)}${unit}`;
-  return frame(title, desc, `${a.svg}${ref}<path class="line" d="${d}"/><circle class="dot" cx="${xx(last.ts).toFixed(1)}" cy="${a.yy(last.y).toFixed(1)}" r="3"><title>${tick(last.y)}${esc(unit)} at ${stamp(last.ts)}</title></circle>`);
+  return frame(title, mk ? `${desc}, ${shown.length} marked events` : desc, `${a.svg}${ref}${mk}<path class="line" d="${d}"/><circle class="dot" cx="${xx(last.ts).toFixed(1)}" cy="${a.yy(last.y).toFixed(1)}" r="3"><title>${tick(last.y)}${esc(unit)} at ${stamp(last.ts)}</title></circle>`);
 }
 
 /** Bar chart per day. bars: [{ day, y, label }], oldest first. */
