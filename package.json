@@ -13,7 +13,8 @@
     "snapshot": "node src/cli.mjs snapshot",
     "dashboard": "node src/cli.mjs dashboard",
     "test:sol": "forge test --fork-url ${MEZO_FORK_RPC:-http://127.0.0.1:8545}",
-    "guard": "node src/cli.mjs guard"
+    "guard": "node src/cli.mjs guard",
+    "test:fork": "MEZO_FORK_RPC=${MEZO_FORK_RPC:-http://127.0.0.1:8545} node --test test/guard-fork.test.mjs"
   },
   "dependencies": {
     "esbuild": "^0.25.12",
