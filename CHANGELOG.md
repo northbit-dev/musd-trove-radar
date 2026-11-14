@@ -12,6 +12,8 @@ Commit links are relative to the repository on GitHub.
 * **Watchlist with browser notifications** on the dashboard: per-trove warning and critical levels kept in
   `localStorage`, re-read every 60 s (also in a background tab), notifying on level changes and Recovery Mode with the
   same rule as `watch`.
+* **Alert worker** (`worker/`): Atom feed per trove, a Telegram bot you own and the signed webhook, on a 5-minute cron.
+  One dependency-free file for the Cloudflare Workers free tier; `node worker/dev.mjs` runs it against the live RPC.
 * **TroveGuard v3**: `Adjust` rungs (add BTC and repay MUSD in one signed step), a target ICR that one `protect`
   reaches over up to five rungs, and a redemption-front trigger with a bounded on-chain walk of the queue. 11 fork
   tests. The keeper, `guard` CLI, dashboard and `guard.html` understand v3: step list, target ICR, redemption

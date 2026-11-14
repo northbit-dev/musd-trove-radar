@@ -141,6 +141,9 @@ Alert state is kept in `--state` (JSON), so restarts do not cause repeat alerts.
 
 When a secret is set, JSON deliveries carry `x-trove-radar-timestamp` and `x-trove-radar-signature: sha256=<hex>`, an HMAC-SHA256 over `${timestamp}.${body}`. Receivers can verify them with `verify()` from `src/webhook.mjs`, which uses a constant-time compare and a 5-minute window. Deliveries time out after 10 s and are retried up to 3 times on network errors, 429 or 5xx; 4xx errors are not retried. You can also set `TROVE_RADAR_WEBHOOK` and `TROVE_RADAR_DASHBOARD_URL` through the environment.
 
+### Without a running process: the alert worker
+`watch` and the dashboard's watchlist need something running. [`worker/`](worker/README.md) is a single dependency-free file for the Cloudflare Workers free tier that you deploy on your own account: a Telegram bot you create with BotFather (`/watch 0x… 150`), an Atom feed per trove at `/feed/<address>.atom` and the same signed JSON webhook as above, checked by a cron every 5 minutes with the same level rule. `node worker/dev.mjs` runs it locally against the live RPC with Telegram stubbed.
+
 ## How it works
 [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) has a diagram of how the modules fit together, and [CHANGELOG.md](CHANGELOG.md) lists every release with its commits and transactions.
 
