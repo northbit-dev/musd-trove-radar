@@ -9,6 +9,9 @@ Commit links are relative to the repository on GitHub.
 * **ICR history per trove**: `trove-history 0xAddr` reads one borrower's `TroveUpdated`/`TroveLiquidated` logs from
   both emitters and archive state around every change, prints the changes with explorer links and writes an SVG
   chart. The dashboard's trove lookup shows the last three days, cached in `localStorage`.
+* **Watchlist with browser notifications** on the dashboard: per-trove warning and critical levels kept in
+  `localStorage`, re-read every 60 s (also in a background tab), notifying on level changes and Recovery Mode with the
+  same rule as `watch`.
 
 ### Changed
 * **Live dashboard**: `index.html` now reads the MUSD contracts from the Mezo RPC in the browser (`out/radar.js`,
