@@ -42,3 +42,8 @@ test('the trove lookup asks radar.js for the ICR history, which reads logs and a
   assert.match(js, /trove-history:/);
   assert.doesNotMatch(js, /eth_sendTransaction|writeContract/);
 });
+
+test('the watchlist panel ships only with radar.js, hidden until the script shows it', () => {
+  assert.match(html(r), /<section id="watch" hidden>/);
+  assert.doesNotMatch(html(r, { liveScript: '' }), /id="watch"/);
+});

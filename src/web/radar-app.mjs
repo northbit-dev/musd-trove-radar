@@ -8,6 +8,8 @@ import { liveParts, statusLine, lookupData, guardData, num } from '../render.mjs
 import { parseStatus } from '../permits.mjs';
 import { GUARD } from '../config.mjs';
 import { troveHistory, historyChart, summary, freeze } from '../trove-history.mjs';
+import * as watchlist from './watchlist.mjs';
+import { describe } from '../alerts.mjs';
 
 const EVERY = 60_000;
 const D = window.D;
@@ -20,6 +22,7 @@ const clean = (e) => String(e?.shortMessage || e?.message || e).split('\n')[0].r
 let snapshot = { block: D.block, ts: D.ts, price: D.price };
 let live = null;
 let busy = false;
+let report = null;
 
 async function guards() {
   if (!GUARD) return null;
@@ -46,11 +49,13 @@ function snapshotStatus(note) {
 }
 
 async function refresh() {
-  if (busy || (live && document.hidden)) return;
+  if (busy || (live && document.hidden && !watching())) return;
   busy = true;
   try {
     const sys = await fetchSystem(pc);
     const r = analyze(sys, await fetchTroves(pc, sys));
+    report = r;
+    watchTick();
     let g = null;
     try { g = await guards(); } catch {}
     const parts = liveParts(r);
@@ -106,6 +111,51 @@ window.showHistory = async (address) => {
     if (el.dataset.address === key) el.innerHTML = `<p class="note">ICR history unavailable: ${clean(e)}</p>`;
   } finally { historyBusy.delete(key); }
 };
+
+const canNotify = () => 'Notification' in window && Notification.permission === 'granted';
+const watching = () => canNotify() && watchlist.load(localStorage).items.length > 0;
+const esc = (x) => String(x).replace(/[<>&"]/g, (c) => `&#${c.charCodeAt(0)};`);
+
+function showWatch(rows = null) {
+  const s = watchlist.load(localStorage);
+  $('wpstate').textContent = 'Notification' in window ? `notifications: ${Notification.permission}` : 'this browser has no notifications';
+  $('wperm').hidden = !('Notification' in window) || Notification.permission !== 'default';
+  const byAddr = new Map((rows ?? []).map((r) => [r.address.toLowerCase(), r]));
+  $('wlist').innerHTML = s.items.map((i) => {
+    const r = byAddr.get(i.address.toLowerCase());
+    const now = r ? esc(describe(r)) : `${esc(i.address)} · ${i.key ? esc(i.key.split('|')[0]) : 'waiting for the next read'}`;
+    return `<li data-level="${esc(r?.level ?? i.key?.split('|')[0] ?? '')}">${now} <small class="note">(warning ${Math.round(i.warn * 100)} %, critical ${Math.round(i.crit * 100)} %)</small> <button type="button" data-remove="${esc(i.address)}">Remove</button></li>`;
+  }).join('');
+}
+
+function watchTick() {
+  const before = watchlist.load(localStorage);
+  if (!report || !before.items.length) return showWatch();
+  const { state, alerts, rows } = watchlist.tick(before, report);
+  watchlist.save(localStorage, state);
+  if (canNotify()) for (const a of alerts) { const n = watchlist.notification(a); try { new Notification(n.title, { body: n.body, tag: n.tag }); } catch {} }
+  showWatch(rows);
+}
+
+$('watch').hidden = false;
+$('wf').onsubmit = (e) => {
+  e.preventDefault();
+  try {
+    const s = watchlist.add(watchlist.load(localStorage), $('waddr').value.trim(), { warn: Number($('wwarn').value) / 100, crit: Number($('wcrit').value) / 100 });
+    watchlist.save(localStorage, s);
+    $('wmsg').textContent = '';
+    $('waddr').value = '';
+    watchTick();
+  } catch (err) { $('wmsg').textContent = err.message === 'not an address' ? 'Enter a 0x… address (42 characters).' : 'The warning level must be above the critical level, and both above 110 %.'; }
+};
+$('wlist').onclick = (e) => {
+  const a = e.target?.dataset?.remove;
+  if (!a) return;
+  watchlist.save(localStorage, watchlist.remove(watchlist.load(localStorage), a));
+  watchTick();
+};
+$('wperm').onclick = async () => { try { await Notification.requestPermission(); } catch {} showWatch(); };
+showWatch();
 
 const first = $('addr').value.trim();
 if (/^0x[0-9a-fA-F]{40}$/.test(first)) window.showHistory(first);

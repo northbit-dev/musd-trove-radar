@@ -23,7 +23,8 @@ export function add(state, address, { warn = 1.5, crit = 1.2 } = {}) {
 }
 
 export function remove(state, address) {
-  return { ...state, items: state.items.filter((i) => i.address.toLowerCase() !== address.toLowerCase()) };
+  const items = state.items.filter((i) => i.address.toLowerCase() !== address.toLowerCase());
+  return { items, recoveryMode: items.length ? state.recoveryMode : null };
 }
 
 // Same rule as `watch`: the first look is silent unless the trove is already in trouble, then only changes alert.

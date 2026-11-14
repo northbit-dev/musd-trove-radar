@@ -191,7 +191,7 @@ tr.liq td{color:var(--red)}tr.risk td{color:var(--amber)}a{color:var(--blue)}
 .b{display:block;height:14px;border-radius:3px;background:#3b82f6;min-width:2px}.b0{background:var(--red)}.b1{background:#f97316}.b2{background:var(--amber)}.n{font-size:13px;width:40px}
 .mini{display:inline-block;height:9px;background:var(--red);border-radius:2px;margin-right:6px;vertical-align:middle;opacity:.7}
 .lookup{display:flex;gap:8px;flex-wrap:wrap}.lookup input{flex:1;min-width:280px;padding:9px 11px;border-radius:8px;border:1px solid var(--line);background:var(--card);color:var(--fg);font:14px ui-monospace,monospace}
-.lookup button{padding:9px 16px;border-radius:8px;border:0;background:#3b82f6;color:#fff;font-weight:600;cursor:pointer}#res,#hist{margin-top:10px}#hist .chart{max-width:640px}.changes{font-size:13px;color:var(--mute);margin:6px 0 0;padding-left:18px}
+.lookup button{padding:9px 16px;border-radius:8px;border:0;background:#3b82f6;color:#fff;font-weight:600;cursor:pointer}#res,#hist{margin-top:10px}#hist .chart{max-width:640px}.changes{font-size:13px;color:var(--mute);margin:6px 0 0;padding-left:18px}.lookup .wl{display:flex;align-items:center;gap:6px;color:var(--mute);font-size:13px}.lookup .wl input{flex:0 0 76px;min-width:0}.wbtn,.wlist button{padding:4px 10px;border-radius:8px;border:1px solid var(--line);background:var(--card);color:var(--fg);cursor:pointer}.wlist{padding-left:18px}.wlist li{margin:4px 0}
 .res{background:var(--card);border:1px solid var(--line);border-left:4px solid var(--green);border-radius:8px;padding:12px}.res.warning{border-left-color:var(--amber)}.res.critical,.res.LIQUIDATABLE{border-left-color:var(--red)}
 details{margin-top:10px;color:var(--mute)}summary{cursor:pointer}.two{display:grid;grid-template-columns:1fr 2fr;gap:18px}.two>div{min-width:0}@media(max-width:800px){.two{grid-template-columns:1fr}.lbl{width:120px}}
 .charts{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,320px),1fr));gap:12px}.chart{margin:0;background:var(--card);border:1px solid var(--line);border-radius:10px;padding:10px}
@@ -201,11 +201,14 @@ details{margin-top:10px;color:var(--mute)}summary{cursor:pointer}.two{display:gr
 </style></head><body><main>
 <header><h1>MUSD Trove Radar</h1><span id="live-mode" style="display:contents">${L.mode}</span><span class="pill">${esc(r.network)}</span></header>
 <div class="sub" id="status">${statusLine(r)}</div>
-<nav aria-label="sections"><a href="#check">Check a trove</a><a href="#trends">Trends</a><a href="#sp">Stability Pool</a><a href="#dist">Distribution</a><a href="#stress">Stress test</a><a href="#redeem">Redemptions</a><a href="#risk">Riskiest</a>${activity ? '<a href="#activity">Activity</a>' : ''}${proofs.length ? '<a href="#keeper">Proof</a>' : ''}${guardPage ? '<a href="guard.html">TroveGuard app</a>' : ''}</nav>
+<nav aria-label="sections"><a href="#check">Check a trove</a><a href="#trends">Trends</a><a href="#sp">Stability Pool</a><a href="#dist">Distribution</a><a href="#stress">Stress test</a><a href="#redeem">Redemptions</a><a href="#risk">Riskiest</a>${activity ? '<a href="#activity">Activity</a>' : ''}${proofs.length ? '<a href="#keeper">Proof</a>' : ''}${liveScript ? '<a href="#watch">Watchlist</a>' : ''}${guardPage ? '<a href="guard.html">TroveGuard app</a>' : ''}</nav>
 <h2 id="check">Check a trove</h2>
 <form class="lookup" id="f" role="search"><label for="addr" class="k" style="width:100%">Borrower address</label><input id="addr" name="address" placeholder="0x… borrower address" autocomplete="off" spellcheck="false"><button>Check</button></form>
 <div id="res" aria-live="polite"></div>
 <div id="hist" aria-live="polite"></div>
+${liveScript ? `<section id="watch" hidden><h2>Watchlist</h2><p class="sub">Troves watched from this browser. The page re-checks them every 60 s, also while the tab is in the background, and notifies when a trove's level changes. The list stays in this browser; nothing is sent anywhere.</p>
+<form class="lookup" id="wf"><label for="waddr" class="k" style="width:100%">Watch a trove</label><input id="waddr" placeholder="0x… borrower address" autocomplete="off" spellcheck="false"><label class="wl">warning below <input id="wwarn" type="number" value="150" min="112" max="1000" step="1"> %</label><label class="wl">critical below <input id="wcrit" type="number" value="120" min="111" max="999" step="1"> %</label><button>Watch</button></form>
+<p><button id="wperm" type="button" class="wbtn">Enable notifications</button> <span id="wpstate" class="note"></span></p><p id="wmsg" class="note" aria-live="polite"></p><ul id="wlist" class="wlist"></ul></section>` : ''}
 <h2>System</h2>
 <div class="grid" id="live-system">
 ${L.system}
