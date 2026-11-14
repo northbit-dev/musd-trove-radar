@@ -1,5 +1,5 @@
 import { createPublicClient, createWalletClient, custom, http, defineChain, parseAbi, parseEther, formatEther, getAddress, isAddress } from 'viem';
-import { permitTypedData, parseStatus, describeRung, ladderRungs, reserveNeeded, musdNeeded, toPermit, malformed } from '../permits.mjs';
+import { KIND, kindName, permitTypedData, parseStatus, parseConfig, describeRung, reserveNeeded, musdNeeded, toPermit, malformed, rungAmounts, reasonName, icrPath, rungsPerCall, debtFloorRung } from '../permits.mjs';
 
 const cfg = JSON.parse(document.getElementById('cfg').textContent);
 const chain = defineChain({
@@ -10,6 +10,8 @@ const chain = defineChain({
 });
 const pc = createPublicClient({ chain, transport: http(cfg.rpc) });
 const guard = { address: cfg.guard, abi: cfg.guardAbi };
+const V3 = (cfg.guardVersion ?? 2) >= 3;
+const KINDS = V3 ? [KIND.AddColl, KIND.RepayMUSD, KIND.Adjust] : [KIND.AddColl, KIND.RepayMUSD];
 const TM = { address: cfg.troveManager, abi: parseAbi([
   'function getTroveStatus(address) view returns (uint8)', 'function getCurrentICR(address,uint256) view returns (uint256)',
   'function getTroveColl(address) view returns (uint256)', 'function getTroveDebt(address) view returns (uint256)',
@@ -26,6 +28,8 @@ const eth = window.ethereum;
 let account = null;
 let wallet = null;
 let walletChain = null;
+let trove = null;
+let armedCfg = null;
 
 const btc = (v, d = 6) => Number(formatEther(v)).toFixed(d);
 const musdFmt = (v) => Number(formatEther(v)).toLocaleString('en-US', { maximumFractionDigits: 2 });
@@ -107,7 +111,10 @@ async function refresh() {
     const active = Number(st) === 1;
     const icr = active ? await pc.readContract({ ...TM, functionName: 'getCurrentICR', args: [who, price] }) : 0n;
     const liq = coll ? (debt * 110n * 10n ** 16n) / coll : 0n;
-    const [trigger, tip, , armed] = cfgRow;
+    const c = parseConfig(cfgRow);
+    const armed = c.active;
+    trove = active ? { coll, debt, price } : null;
+    armedCfg = armed ? c : null;
     const s = st2 ? parseStatus(who, st2) : null;
     const permits = await storedPermits(who, nonce);
     const cls = !active ? '' : icr < 11n * 10n ** 17n ? 'g-bad' : s?.protectable ? 'g-warn' : 'g-ok';
@@ -119,13 +126,21 @@ async function refresh() {
       ${row('Collateral / debt', active ? `${btc(coll)} BTC / ${musdFmt(debt)} MUSD` : '—')}
       ${row('BTC price', `$${Number(formatEther(price)).toLocaleString('en-US', { maximumFractionDigits: 0 })}`)}
       ${row('Signature nonce', nonce.toString())}
-      ${row('Guard', armed ? `armed · trigger ${pctFmt(trigger)} · tip ${btc(tip, 6)} BTC` : 'not armed')}
+      ${row('Guard', armed ? `armed · trigger ${pctFmt(c.trigger)}${c.targetICR ? ` · target ${pctFmt(c.targetICR)} in up to ${c.maxRungs} rungs` : ''}${c.redemptionBuffer ? ` · redemption buffer ${musdFmt(c.redemptionBuffer)} MUSD` : ''} · tip ${btc(c.tip, 6)} BTC` : 'not armed')}
       ${row('Reserves', s ? `${btc(s.reserve)} BTC + ${musdFmt(s.musdReserve)} MUSD` : '—')}
-      ${row('Next rung', s && s.amount ? `${esc(describeRung(s))}${s.protectable ? ' · <b>PROTECTABLE now</b>' : ''}` : 'none stored for this nonce')}
+      ${row('Next rung', s && (s.btc || s.musd) ? `${esc(describeRung(s))}${s.protectable ? ` · <b>PROTECTABLE now</b>${s.reason ? ` (${esc(reasonName(s.reason))})` : ''}` : ''}` : 'none stored for this nonce')}
       ${row('Wallet', `${btc(btcBal)} BTC · ${musdFmt(musdBal)} MUSD`)}
+      ${V3 && s?.musdAhead != null ? row('Redemption queue', `${musdFmt(s.musdAhead)} MUSD ahead of you`) : ''}
     </div>${permits.length ? `<h3>Stored ladder</h3><table><tr><th>Nonce</th><th>Rung</th><th>Expires</th></tr>${permits.map((p) => `<tr><td>${p.nonce}</td><td>${esc(describeRung(p))}</td><td>${new Date(Number(p.deadline) * 1000).toLocaleString()}${Number(p.deadline) * 1000 < Date.now() ? ' (expired)' : ''}</td></tr>`).join('')}</table>` : ''}`;
     $('trove').dataset.nonce = nonce.toString();
-    if (armed && !$('trigger').dataset.touched) $('trigger').value = (Number(trigger) / 1e16).toFixed(0);
+    if (armed) {
+      const put = (id, v) => { if ($(id) && !$(id).dataset.touched) $(id).value = v; };
+      put('trigger', (Number(c.trigger) / 1e16).toFixed(0));
+      put('target', (Number(c.targetICR) / 1e16).toFixed(0));
+      put('buffer', formatEther(c.redemptionBuffer));
+      put('maxRungs', String(c.maxRungs));
+    }
+    previewLadder();
   } catch (e) { $('trove').innerHTML = `<p class="bad">Could not read the trove: ${errMsg(e)}</p>`; }
 }
 
@@ -135,8 +150,8 @@ async function storedPermits(who, nonce) {
   const out = [];
   for (let i = 0; i < res.length; i++) {
     const p = res[i].result;
-    if (!p || !p.amount) break;
-    out.push({ nonce: nonce + BigInt(i), kind: Number(p.kind), amount: p.amount, deadline: p.deadline });
+    if (!p || (V3 ? !p.signature || p.signature === '0x' : !p.amount)) break;
+    out.push({ nonce: nonce + BigInt(i), kind: Number(p.kind), ...rungAmounts(p), deadline: p.deadline });
   }
   return out;
 }
@@ -156,11 +171,17 @@ async function send(label, request) {
   } finally { setBusy(false); await refresh(); }
 }
 
+const pctIn = (id) => BigInt(Math.round(Number($(id).value || 0) * 100)) * 10n ** 14n;
 const ether = (id) => { const v = $(id).value.trim(); return v ? parseEther(v) : 0n; };
 
 async function configure() {
-  const trigger = BigInt(Math.round(Number($('trigger').value) * 100)) * 10n ** 14n;
-  await send('configure', { functionName: 'configure', args: [trigger, ether('tip')], value: ether('reserve') });
+  const trigger = pctIn('trigger');
+  if (!V3) { await send('configure', { functionName: 'configure', args: [trigger, ether('tip')], value: ether('reserve') }); return; }
+  const target = pctIn('target');
+  if (target && target <= trigger) { log('Target ICR must be 0 or above the trigger.', 'bad'); return; }
+  const maxRungs = Number($('maxRungs').value);
+  if (!(maxRungs >= 1 && maxRungs <= 5)) { log('Max rungs per call must be 1 to 5.', 'bad'); return; }
+  await send('configure', { functionName: 'configure', args: [trigger, ether('tip'), target, ether('buffer'), maxRungs], value: ether('reserve') });
 }
 
 async function depositMUSD() {
@@ -179,25 +200,58 @@ async function depositMUSD() {
   await send('depositMUSD', { functionName: 'depositMUSD', args: [amount] });
 }
 
+const DEFAULT_STEPS = V3
+  ? [[KIND.Adjust, '0.002', '100'], [KIND.RepayMUSD, '', '100'], [KIND.AddColl, '0.002', '']]
+  : [[KIND.AddColl, '0.002', ''], [KIND.RepayMUSD, '', '100'], [KIND.AddColl, '0.002', '']];
+
+function addStep(kind = KIND.AddColl, btcV = '', musdV = '') {
+  if ($('steps').children.length >= 8) return;
+  const row = document.createElement('div');
+  row.className = 'row step';
+  row.innerHTML = `<select aria-label="kind">${KINDS.map((k) => `<option value="${k}">${kindName(k)}</option>`).join('')}</select><input aria-label="BTC" placeholder="BTC" value="${esc(btcV)}"><input aria-label="MUSD" placeholder="MUSD" value="${esc(musdV)}"><button type="button" class="alt" aria-label="remove step">×</button>`;
+  const [sel, b, m, x] = row.children;
+  sel.value = String(kind);
+  const sync = () => { const k = Number(sel.value); b.disabled = k === KIND.RepayMUSD; m.disabled = k === KIND.AddColl; previewLadder(); };
+  sel.onchange = sync;
+  b.oninput = m.oninput = previewLadder;
+  x.onclick = () => { row.remove(); previewLadder(); };
+  $('steps').append(row);
+  sync();
+}
+
 function ladderFromForm() {
-  return ladderRungs({
-    count: Math.max(1, Math.min(8, Number($('rungs').value) || 1)),
-    first: Number($('firstKind').value), alternate: $('alternate').checked,
-    btcAmount: ether('rungBtc'), musdAmount: ether('rungMusd'),
+  return [...$('steps').children].map((row) => {
+    const [sel, b, m] = row.children;
+    const kind = Number(sel.value);
+    const amt = (el) => (el.disabled || !el.value.trim() ? 0n : parseEther(el.value.trim()));
+    return { kind, btc: amt(b), musd: amt(m) };
   });
 }
 
 function previewLadder() {
   try {
     const rungs = ladderFromForm();
-    const tip = ether('tip');
-    $('ladderPreview').textContent = `${rungs.map(describeRung).join(' → ')} · reserve needed ${btc(reserveNeeded(rungs, tip))} BTC + ${musdFmt(musdNeeded(rungs))} MUSD`;
-  } catch { $('ladderPreview').textContent = ''; }
+    if (!rungs.length) { $('ladderPreview').textContent = 'Add at least one step.'; return; }
+    const parts = [`${rungs.map(describeRung).join(' → ')} · reserve needed ${btc(reserveNeeded(rungs, ether('tip')))} BTC + ${musdFmt(musdNeeded(rungs))} MUSD`];
+    if (trove) {
+      const path = icrPath(trove, rungs);
+      parts.push(`ICR now ${pctFmt((trove.coll * trove.price) / trove.debt)} → ${path.map(pctFmt).join(' → ')}`);
+      const bad = debtFloorRung(trove, rungs);
+      if (bad >= 0) parts.push(`⚠ rung ${bad + 1} would leave net debt under 1,800 MUSD and revert`);
+      if (V3) {
+        const target = $('target') ? pctIn('target') : 0n, maxRungs = Number($('maxRungs')?.value) || 1;
+        const n = rungsPerCall(path, { targetICR: target, maxRungs });
+        parts.push(target ? `the first keeper call spends ${n} rung${n === 1 ? '' : 's'} toward ${pctFmt(target)}` : 'one rung per keeper call');
+      }
+    }
+    $('ladderPreview').textContent = parts.join(' · ');
+  } catch { $('ladderPreview').textContent = 'Amounts must be numbers.'; }
 }
 
 async function signAndStore() {
   const rungs = ladderFromForm();
-  if (rungs.some(malformed)) { log('Every rung needs an amount above zero.', 'bad'); return; }
+  if (!rungs.length) { log('Add at least one step.', 'bad'); return; }
+  if (rungs.some(malformed)) { log(V3 ? 'Every rung needs an amount above zero (Adjust needs both BTC and MUSD).' : 'Every rung needs an amount above zero.', 'bad'); return; }
   const firstNonce = await pc.readContract({ ...BOS, functionName: 'getNonce', args: [account] });
   const deadline = BigInt(Math.floor(Date.now() / 1000) + Number($('days').value || 30) * 86400);
   const permits = [];
@@ -219,7 +273,7 @@ $('connect').onclick = connect;
 $('addchain').onclick = addChain;
 $('refresh').onclick = refresh;
 $('lookup').onsubmit = (e) => { e.preventDefault(); refresh(); };
-$('trigger').oninput = () => { $('trigger').dataset.touched = '1'; };
+for (const id of ['trigger', 'target', 'buffer', 'maxRungs']) if ($(id)) $(id).addEventListener('input', () => { $(id).dataset.touched = '1'; previewLadder(); });
 $('doConfigure').onclick = configure;
 $('doDeposit').onclick = () => send('deposit', { functionName: 'deposit', value: ether('btcDeposit') });
 $('doDepositMUSD').onclick = depositMUSD;
@@ -227,8 +281,9 @@ $('doStore').onclick = signAndStore;
 $('doWithdraw').onclick = () => send('withdraw', { functionName: 'withdraw', args: [ether('btcWithdraw')] });
 $('doWithdrawMUSD').onclick = () => send('withdrawMUSD', { functionName: 'withdrawMUSD', args: [ether('musdWithdraw')] });
 $('doCancel').onclick = () => { if (confirm('Cancel the guard? This refunds both reserves and invalidates every stored permit.')) send('cancel', { functionName: 'cancel' }); };
-for (const id of ['rungs', 'firstKind', 'alternate', 'rungBtc', 'rungMusd', 'tip']) $(id).addEventListener('input', previewLadder);
-previewLadder();
+$('addStep').onclick = () => addStep();
+$('tip').addEventListener('input', previewLadder);
+for (const st of DEFAULT_STEPS) addStep(...st);
 if (eth?.on) {
   eth.on('chainChanged', (c) => { walletChain = Number(c); renderWallet(); });
   eth.on('accountsChanged', (a) => { account = a[0] ? getAddress(a[0]) : null; if (account) wallet = createWalletClient({ account, chain, transport: custom(eth) }); renderWallet(); if (account) { $('addr').value = account; refresh(); } });

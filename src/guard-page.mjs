@@ -23,6 +23,7 @@ const field = (id, label, attrs = '') => `<label>${label}<input id="${id}" ${att
 
 export function guardHtml(cfg, { script = 'guard.js' } = {}) {
   const json = JSON.stringify(cfg).replace(/</g, '\\u003c');
+  const v3 = (cfg.guardVersion ?? 2) >= 3;
   return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><link rel="icon" href="data:,">
 <title>TroveGuard · ${cfg.chainName}</title><meta name="description" content="Arm TroveGuard for your MUSD trove with your own wallet: reserves, trigger and a pre-signed permit ladder.">
 <style>
@@ -41,7 +42,7 @@ label{display:flex;flex-direction:column;font-size:12px;color:var(--mute);gap:4p
 input[type=checkbox]{width:auto}label{min-width:0;max-width:100%}#lookup label{flex:0 1 440px}#addr{width:100%}@media (max-width:600px){main{padding:14px}}.row{display:flex;gap:10px;align-items:center}
 table{border-collapse:collapse;font-variant-numeric:tabular-nums}td,th{padding:5px 10px;border-bottom:1px solid var(--line);text-align:left}th{color:var(--mute);font-weight:500;font-size:13px}
 #log{list-style:none;padding:0;font-size:14px}#log li{padding:5px 0;border-bottom:1px solid var(--line)}#log time{color:var(--mute);font-size:12px;margin-right:6px}#log .ok{color:var(--green)}#log .bad,.bad{color:var(--red)}
-#ladderPreview{color:var(--mute);font-size:13px;width:100%}
+#ladderPreview{color:var(--mute);font-size:13px;width:100%}#steps{display:flex;flex-direction:column;gap:6px;width:100%}#steps .row input,#steps .row select{width:150px}
 footer{color:var(--mute);font-size:12px;margin-top:34px;border-top:1px solid var(--line);padding-top:12px}
 </style></head><body><main>
 <h1>TroveGuard</h1>
@@ -54,17 +55,14 @@ footer{color:var(--mute);font-size:12px;margin-top:34px;border-top:1px solid var
 <div id="trove" style="margin-top:10px"><p class="note">Enter a borrower address or connect a wallet.</p></div>
 
 <h2>1 · Arm the guard</h2>
-<fieldset>${field('trigger', 'Trigger ICR (%)', 'type="number" min="111" max="1000" step="1" value="130"')}${field('tip', 'Keeper tip per rung (BTC)', 'value="0.00001"')}${field('reserve', 'BTC reserve to deposit', 'value="0.00403"')}<button type="button" class="tx" id="doConfigure">configure</button></fieldset>
-<p class="note">The guard fires when ICR is strictly below the trigger. It must be between 110 % (MCR) and 1000 %. The tip is paid in BTC from the reserve to whoever calls <code>protect</code>.</p>
+<fieldset>${field('trigger', 'Trigger ICR (%)', 'type="number" min="111" max="1000" step="1" value="130"')}${v3 ? `${field('target', 'Target ICR (%, 0 = one rung per call)', 'type="number" min="0" max="1000" step="1" value="160"')}${field('buffer', 'Redemption buffer (MUSD, 0 = off)', 'value="0"')}${field('maxRungs', 'Max rungs per call', 'type="number" min="1" max="5" value="3"')}` : ''}${field('tip', 'Keeper tip per rung (BTC)', 'value="0.00001"')}${field('reserve', 'BTC reserve to deposit', 'value="0.00403"')}<button type="button" class="tx" id="doConfigure">configure</button></fieldset>
+<p class="note">The guard fires when ICR is strictly below the trigger${v3 ? ', or when less than the redemption buffer of MUSD sits ahead of your trove in the redemption queue' : ''}. The trigger must be between 110 % (MCR) and 1000 %. ${v3 ? 'With a target ICR, one keeper call keeps spending rungs until ICR reaches the target, up to the max rungs per call. ' : ''}The tip is paid in BTC from the reserve to whoever calls <code>protect</code>, once per rung.</p>
 <fieldset>${field('btcDeposit', 'Add BTC to reserve')}<button type="button" class="tx" id="doDeposit">deposit</button>${field('musdDeposit', 'Add MUSD to reserve')}<button type="button" class="tx" id="doDepositMUSD">approve + depositMUSD</button></fieldset>
 
 <h2>2 · Sign a permit ladder</h2>
-<fieldset>${field('rungs', 'Rungs', 'type="number" min="1" max="8" value="3"')}
-<label>First rung<select id="firstKind"><option value="0">AddColl (BTC)</option><option value="1">RepayMUSD</option></select></label>
-<label class="row"><input type="checkbox" id="alternate">alternate kinds</label>
-${field('rungBtc', 'AddColl amount (BTC)', 'value="0.002"')}${field('rungMusd', 'RepayMUSD amount (MUSD)', 'value="100"')}${field('days', 'Valid for (days)', 'type="number" min="1" value="30"')}
+<fieldset><div id="steps"></div><button type="button" class="alt" id="addStep">+ step</button>${field('days', 'Valid for (days)', 'type="number" min="1" value="30"')}
 <button type="button" class="tx" id="doStore">sign in wallet + storePermits</button><div id="ladderPreview"></div></fieldset>
-<p class="note">Your wallet signs one EIP-712 message per rung (<code>AddColl</code> or <code>RepayMUSD</code> for BorrowerOperationsSignatures) for consecutive nonces from your current one. Signatures stay in your wallet until you send them; this page never sees a private key. A repayment must leave net debt at or above 1,800 MUSD.</p>
+<p class="note">Each step is one rung: <code>AddColl</code> adds BTC from the reserve, <code>RepayMUSD</code> repays debt from the MUSD reserve${v3 ? ', <code>Adjust</code> does both in one BorrowerOperations call' : ''}. Your wallet signs one EIP-712 message per rung for consecutive nonces from your current one. Signatures stay in your wallet until you send them; this page never sees a private key. A repayment must leave net debt at or above 1,800 MUSD.</p>
 
 <h2>3 · Withdraw or cancel</h2>
 <fieldset>${field('btcWithdraw', 'BTC')}<button type="button" class="tx alt" id="doWithdraw">withdraw</button>${field('musdWithdraw', 'MUSD')}<button type="button" class="tx alt" id="doWithdrawMUSD">withdrawMUSD</button><button type="button" class="tx danger" id="doCancel">cancel guard</button></fieldset>

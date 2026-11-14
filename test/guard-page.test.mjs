@@ -25,3 +25,11 @@ test('guard.html is static: local script, chain 31611 config, no private key and
   assert.match(js, /wallet_addEthereumChain/);
   assert.match(js, /eth_signTypedData_v4|signTypedData/);
 });
+
+test('guard.html for v3 asks for target ICR, redemption buffer and max rungs and builds steps; v2 keeps the old form', () => {
+  const v3 = guardHtml({ ...guardConfig(), guardVersion: 3 });
+  for (const id of ['target', 'buffer', 'maxRungs', 'steps', 'addStep']) assert.match(v3, new RegExp(`id="${id}"`));
+  assert.match(v3, /Adjust/);
+  const v2 = guardHtml({ ...guardConfig(), guardVersion: 2 });
+  for (const id of ['target', 'buffer', 'maxRungs']) assert.doesNotMatch(v2, new RegExp(`id="${id}"`));
+});
