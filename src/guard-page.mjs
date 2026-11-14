@@ -14,7 +14,7 @@ export async function bundleGuardApp() {
 export function guardConfig(guard = GUARD) {
   return {
     chainId: NETWORK.chainId, chainName: NETWORK.name, rpc: NETWORK.rpc, explorer: NETWORK.explorer, multicall3: NETWORK.multicall3,
-    guard: guard.address, guardAbi: guard.abi,
+    guard: guard.address, guardAbi: guard.abi, guardVersion: guard.version ?? 2,
     troveManager: C.troveManager.address, priceFeed: C.priceFeed.address, bos: C.borrowerOperationsSignatures.address, musd: C.musd.address,
   };
 }

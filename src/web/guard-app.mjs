@@ -1,5 +1,5 @@
 import { createPublicClient, createWalletClient, custom, http, defineChain, parseAbi, parseEther, formatEther, getAddress, isAddress } from 'viem';
-import { permitTypedData, parseStatus, describeRung, ladderRungs, reserveNeeded, musdNeeded } from '../permits.mjs';
+import { permitTypedData, parseStatus, describeRung, ladderRungs, reserveNeeded, musdNeeded, toPermit, malformed } from '../permits.mjs';
 
 const cfg = JSON.parse(document.getElementById('cfg').textContent);
 const chain = defineChain({
@@ -197,17 +197,16 @@ function previewLadder() {
 
 async function signAndStore() {
   const rungs = ladderFromForm();
-  if (rungs.some((r) => !r.amount)) { log('Every rung needs an amount above zero.', 'bad'); return; }
+  if (rungs.some(malformed)) { log('Every rung needs an amount above zero.', 'bad'); return; }
   const firstNonce = await pc.readContract({ ...BOS, functionName: 'getNonce', args: [account] });
   const deadline = BigInt(Math.floor(Date.now() / 1000) + Number($('days').value || 30) * 86400);
   const permits = [];
   setBusy(true);
   try {
     for (let i = 0; i < rungs.length; i++) {
-      const { kind, amount } = rungs[i];
       log(`Sign rung ${i + 1}/${rungs.length} in your wallet: ${esc(describeRung(rungs[i]))}, nonce ${firstNonce + BigInt(i)}`);
-      const signature = await wallet.signTypedData({ account, ...permitTypedData({ kind, amount, borrower: account, nonce: firstNonce + BigInt(i), deadline, chainId: cfg.chainId, verifyingContract: cfg.bos }) });
-      permits.push({ kind, amount, deadline, signature });
+      const signature = await wallet.signTypedData({ account, ...permitTypedData({ ...rungs[i], borrower: account, nonce: firstNonce + BigInt(i), deadline, chainId: cfg.chainId, verifyingContract: cfg.bos }) });
+      permits.push(toPermit(rungs[i], deadline, signature, cfg.guardVersion ?? 2));
     }
   } catch (e) { log(`Signing stopped: ${errMsg(e)}`, 'bad'); setBusy(false); return; }
   setBusy(false);

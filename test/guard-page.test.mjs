@@ -5,7 +5,7 @@ import { guardConfig, guardHtml, bundleGuardApp } from '../src/guard-page.mjs';
 
 test('ladderRungs alternates kinds from the first one; reserves cover every rung plus a tip each', () => {
   const rungs = ladderRungs({ count: 3, first: KIND.RepayMUSD, alternate: true, btcAmount: 2n, musdAmount: 100n });
-  assert.deepEqual(rungs, [{ kind: 1, amount: 100n }, { kind: 0, amount: 2n }, { kind: 1, amount: 100n }]);
+  assert.deepEqual(rungs, [{ kind: 1, btc: 0n, musd: 100n }, { kind: 0, btc: 2n, musd: 0n }, { kind: 1, btc: 0n, musd: 100n }]);
   assert.equal(reserveNeeded(rungs, 1n), 5n);
   assert.equal(musdNeeded(rungs), 200n);
   assert.deepEqual(ladderRungs({ count: 2, first: KIND.AddColl, alternate: false, btcAmount: 2n, musdAmount: 100n }).map((r) => r.kind), [0, 0]);

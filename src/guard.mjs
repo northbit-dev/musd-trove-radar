@@ -3,13 +3,13 @@ import { mezoTestnet } from './chain.mjs';
 import { NETWORK, C, GUARD } from './config.mjs';
 import { protectProfit, fmtMusd } from './profit.mjs';
 import { textLog } from './log.mjs';
-import { KIND, permitTypedData as typedData, describeRung, parseStatus } from './permits.mjs';
+import { KIND, permitTypedData as typedData, describeRung, parseStatus, toPermit } from './permits.mjs';
 
 const TM = C.troveManager, BOS = C.borrowerOperationsSignatures;
 
-export function guardAt(address = process.env.TROVE_GUARD || GUARD?.address) {
+export function guardAt(address = process.env.TROVE_GUARD || GUARD?.address, { abi = GUARD?.abi, version = GUARD?.version ?? 2 } = {}) {
   if (!address) throw new Error('no TroveGuard address (deploy first or set TROVE_GUARD)');
-  return { address, abi: GUARD.abi };
+  return { address, abi, version };
 }
 
 export { KIND, kindName, describeRung, parseStatus } from './permits.mjs';
@@ -18,15 +18,14 @@ export { KIND, kindName, describeRung, parseStatus } from './permits.mjs';
 export const permitTypedData = (p) => typedData({ chainId: NETWORK.chainId, verifyingContract: BOS.address, ...p });
 
 /**
- * Sign a ladder of permits for consecutive nonces. `rungs` is a list of { kind, amount };
- * AddColl amounts are BTC wei, RepayMUSD amounts are MUSD wei. Both kinds share the borrower's nonce.
+ * Sign a ladder of permits for consecutive nonces, shaped for the guard `version`'s storePermits.
+ * Rungs are { kind, btc, musd } (or v2's { kind, amount }); every kind shares the borrower's one nonce.
  */
-export async function signLadder(account, { firstNonce, rungs, deadline }) {
+export async function signLadder(account, { firstNonce, rungs, deadline, version = GUARD?.version ?? 2 }) {
   const permits = [];
   for (let i = 0; i < rungs.length; i++) {
-    const { kind, amount } = rungs[i];
-    const signature = await account.signTypedData(permitTypedData({ kind, amount, borrower: account.address, nonce: firstNonce + BigInt(i), deadline }));
-    permits.push({ kind, amount, deadline, signature });
+    const signature = await account.signTypedData(permitTypedData({ ...rungs[i], borrower: account.address, nonce: firstNonce + BigInt(i), deadline }));
+    permits.push(toPermit(rungs[i], deadline, signature, version));
   }
   return permits;
 }

@@ -7,7 +7,7 @@ import { KIND, signLadder, permitTypedData, parseStatus, nicrAfter, describeRung
 test('signLadder: mixed AddColl/RepayMUSD rungs on consecutive nonces, digests match the Solidity typehashes', async () => {
   const account = privateKeyToAccount(generatePrivateKey());
   const rungs = [{ kind: KIND.AddColl, amount: 2n * 10n ** 15n }, { kind: KIND.RepayMUSD, amount: 100n * 10n ** 18n }, { kind: KIND.AddColl, amount: 10n ** 15n }];
-  const permits = await signLadder(account, { firstNonce: 7n, rungs, deadline: 1_900_000_000n });
+  const permits = await signLadder(account, { firstNonce: 7n, rungs, deadline: 1_900_000_000n, version: 2 });
   assert.deepEqual(permits.map((p) => p.kind), [0, 1, 0]);
   for (const [i, p] of permits.entries()) {
     const td = permitTypedData({ ...p, borrower: account.address, nonce: 7n + BigInt(i) });
@@ -23,6 +23,25 @@ test('signLadder: mixed AddColl/RepayMUSD rungs on consecutive nonces, digests m
     ));
     assert.equal(hashTypedData(td), keccak256(`0x1901${domain.slice(2)}${structHash.slice(2)}`));
   }
+});
+
+test('signLadder v3: an Adjust rung hashes as AdjustTrove with recipient = borrower and no withdrawal', async () => {
+  const account = privateKeyToAccount(generatePrivateKey());
+  const rungs = [{ kind: KIND.Adjust, btc: 2n * 10n ** 15n, musd: 100n * 10n ** 18n }, { kind: KIND.RepayMUSD, btc: 0n, musd: 5n }];
+  const [p, q] = await signLadder(account, { firstNonce: 3n, rungs, deadline: 1_900_000_000n, version: 3 });
+  assert.deepEqual([p.kind, p.btc, p.musd, q.kind, q.musd], [2, rungs[0].btc, rungs[0].musd, 1, 5n]);
+  const td = permitTypedData({ ...p, borrower: account.address, nonce: 3n });
+  assert.equal(await recoverTypedDataAddress({ ...td, signature: p.signature }), account.address);
+  const typeString = 'AdjustTrove(uint256 collWithdrawal,uint256 debtChange,bool isDebtIncrease,uint256 assetAmount,address borrower,address recipient,uint256 nonce,uint256 deadline)';
+  const structHash = keccak256(encodeAbiParameters(
+    ['bytes32', 'uint256', 'uint256', 'bool', 'uint256', 'address', 'address', 'uint256', 'uint256'].map((type) => ({ type })),
+    [keccak256(toHex(typeString)), 0n, p.musd, false, p.btc, account.address, account.address, 3n, p.deadline],
+  ));
+  const domain = keccak256(encodeAbiParameters(
+    [{ type: 'bytes32' }, { type: 'bytes32' }, { type: 'bytes32' }, { type: 'uint256' }, { type: 'address' }],
+    [keccak256(toHex('EIP712Domain(string name,string version,uint256 chainId,address verifyingContract)')), keccak256(toHex('BorrowerOperationsSignatures')), keccak256(toHex('1')), BigInt(td.domain.chainId), td.domain.verifyingContract],
+  ));
+  assert.equal(hashTypedData(td), keccak256(`0x1901${domain.slice(2)}${structHash.slice(2)}`));
 });
 
 test('parseStatus reads both the v1 and v2 status() shapes; hints follow the rung kind', () => {
