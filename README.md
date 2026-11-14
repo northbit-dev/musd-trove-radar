@@ -202,6 +202,30 @@ Both rungs went through `node src/cli.mjs keeper --protect` as a dry-run first, 
 | `protect` #2 by the keeper: ICR 125.82 % → 133.68 % | [`0x9f66e2…859da`](https://explorer.test.mezo.org/tx/0x9f66e2b0b6d537b1f5bd5d4ca759a740647482e759517c74f5af6222930859da) |
 | `cancel`: refunded the unused rung (0.00201 BTC) before v2 | [`0xdb5615…591ce`](https://explorer.test.mezo.org/tx/0xdb561517fb7084fed10e80be4a638aab341c33e0dfd2f12e2bf28e2bf13591ce) |
 
+### TroveGuard v3
+`contracts/TroveGuardV3.sol` keeps the v2 model (BTC and MUSD reserves, a nonce-keyed ladder, permissionless `protect`) and adds three things:
+
+| Feature | What `protect` does |
+| --- | --- |
+| `Adjust` rung (kind 2) | One `adjustTroveWithSignature` permit adds BTC **and** repays MUSD in a single BorrowerOperations call. Signed digest: `AdjustTrove(collWithdrawal=0, debtChange, isDebtIncrease=false, assetAmount, borrower, recipient=borrower, nonce, deadline)`. |
+| Target ICR | With `targetICR > 0`, one call keeps spending rungs until ICR ≥ target, at most `maxRungs` (1–5) per call. Small rungs give a just-enough repayment. A rung whose repayment would push net debt under BorrowerOperations' `minNetDebt` ends the loop instead of reverting it. |
+| Redemption trigger | `protect` is also allowed at a healthy ICR when less than `redemptionBuffer` MUSD of redeemable debt sits ahead of the trove, counted on chain with a walk of at most 40 troves from `SortedTroves.getLast()`. |
+
+`configure(trigger, tip, targetICR, redemptionBuffer, maxRungs)` sets all of it; the tip is paid per rung spent. `Protected` carries the `reason` (low ICR or redemption front), and `KeeperPaid` reports rungs and tip per call. `status()` returns `reason` and `musdAhead`, so `node src/cli.mjs guard` and the dashboard show why a trove is protectable. The keeper simulates `protect`, reads how many rungs it will spend, recomputes the insert hints for the trove after all of them and pays only when the tip covers gas.
+
+In `guard.html` (served for a v3 guard) the ladder is a list of steps: `Adjust`, `AddColl` or `RepayMUSD`, each with its own amounts. The preview shows the reserves needed, the expected ICR after each step, how many steps the first keeper call will spend toward the target, and warns about a step that would take net debt under 1,800 MUSD.
+
+```sh
+forge test --fork-url http://127.0.0.1:8545 --match-contract TroveGuardV3   # 11 fork tests
+MEZO_FORK_RPC=http://127.0.0.1:8545 node --test test/guard-fork.test.mjs   # keeper protects Adjust → Repay → AddColl in one call
+MEZO_RPC=http://127.0.0.1:8545 node scripts/troveguard-v3-live.mjs deploy  # rehearsal on the fork; files go to forge-out/rehearsal/
+MEZO_RPC=http://127.0.0.1:8545 node scripts/troveguard-v3-live.mjs fork-price 110000
+MEZO_RPC=http://127.0.0.1:8545 E2E_GUARD=forge-out/rehearsal/TroveGuard.json \
+  E2E_FLOW=configure,depositMUSD,store,protect,cancel E2E_TARGET=210 \
+  E2E_STEPS='adjust:0.002/20,add:0.002,repay:20' node scripts/guard-e2e.mjs out
+```
+On the fork the browser flow arms the guard, stores the three steps, and one keeper call spends two of them (ICR 192.9 % → 216.5 %) and stops at the 210 % target.
+
 ### Why permits come in a ladder
 `BorrowerOperationsSignatures` gives each borrower a single nonce counter. Every `*WithSignature` call uses it: add or withdraw collateral, repay, refinance, close. The signed digest is `AddColl(assetAmount, borrower, nonce, deadline)` with the **current** nonce, and a successful call increments it. Three things follow:
 

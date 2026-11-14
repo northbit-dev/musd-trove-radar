@@ -84,6 +84,11 @@ It checks `getCurrentICR < trigger` against the live oracle, spends the permit f
 Funds can only go to the borrower's trove, to the caller as the tip, or back to the borrower.
 [SECURITY.md](../SECURITY.md) has the threat model.
 
+`contracts/TroveGuardV3.sol` adds `AdjustTrove` permits, a target ICR reached over up to `maxRungs` rungs in one call,
+and a redemption-front trigger (bounded walk of 40 troves from `SortedTroves.getLast()`). The JS side picks v2 or v3
+from `version` in the guard JSON: `permits.mjs` builds the typed data and the Permit struct, `guard.mjs` runs the
+keeper, and `web/guard-app.mjs` renders the step list.
+
 ## Trust boundaries
 * Keys are read only by `keeper.mjs#loadAccount`, from `MEZO_PRIVATE_KEY` or a chmod 600 file outside the repo.
   They are never logged, and they never reach the browser. The guard page signs only through the user's wallet.
