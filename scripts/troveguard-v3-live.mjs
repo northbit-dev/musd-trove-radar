@@ -25,7 +25,7 @@ const proofsFile = new URL('proofs.json', dir);
 const TM = C.troveManager;
 const pct = (x) => `${(Number(x) / 1e16).toFixed(2)} %`;
 const read = (c, functionName, args = []) => pc.readContract({ ...c, functionName, args });
-const STEPS = process.env.DEMO_STEPS || 'adjust:0.002/100,repay:100,add:0.002';
+const STEPS = process.env.DEMO_STEPS || 'adjust:0.002/20,add:0.002,repay:20';
 
 async function guardNow(address) {
   const { guardAt } = await import('../src/guard.mjs');

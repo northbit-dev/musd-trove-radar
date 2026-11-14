@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// End-to-end run of out/guard.html on Mezo Testnet in a headless browser (E2E_BROWSER, E2E_DEVICE).
+// End-to-end run of out/guard.html on Mezo Testnet, or an anvil fork via MEZO_RPC, in a headless browser (E2E_BROWSER, E2E_DEVICE).
 // The page talks to an injected EIP-1193 provider; every request is answered by this Node process,
 // which signs with the testnet key from MEZO_KEY_FILE. The key never enters the page.
 import fs from 'node:fs';
@@ -15,7 +15,7 @@ const outDir = path.resolve(process.argv[2] || 'out');
 const shot = path.resolve(process.argv[3] || 'docs/guard.png');
 const account = loadAccount();
 if (!account) throw new Error('no testnet key: set MEZO_KEY_FILE to a chmod 600 file');
-const pc = createPublicClient({ chain: mezoTestnet, transport: rpc(NETWORK.rpc) });
+const pc = createPublicClient({ chain: mezoTestnet, transport: rpc(NETWORK.rpc, { timeout: 120_000 }) });
 if ((await pc.getChainId()) !== 31611) throw new Error('refusing: RPC is not Mezo Testnet');
 const wc = createWalletClient({ account, chain: mezoTestnet, transport: rpc(NETWORK.rpc) });
 
@@ -115,14 +115,27 @@ console.log('trove:', (await page.innerText('#trove')).replace(/\s+/g, ' ').slic
 
 const flow = (process.env.E2E_FLOW ?? 'configure,depositMUSD,store,withdraw,withdrawMUSD,cancel').split(',').filter(Boolean);
 await page.fill('#trigger', process.env.E2E_TRIGGER || '200');
-await page.fill('#tip', '0.00001');
+await page.fill('#tip', process.env.E2E_TIP ?? '0.00001');
 await page.fill('#reserve', process.env.E2E_RESERVE ?? '0.00203');
-await page.fill('#musdDeposit', '100');
-await page.fill('#rungs', '2');
-await page.selectOption('#firstKind', '1');
-await page.check('#alternate');
-await page.fill('#rungBtc', '0.002');
-await page.fill('#rungMusd', '100');
+await page.fill('#musdDeposit', process.env.E2E_MUSD ?? '100');
+const v3 = (await page.locator('#target').count()) > 0;
+if (v3) {
+  await page.fill('#target', process.env.E2E_TARGET ?? '250');
+  await page.fill('#buffer', process.env.E2E_BUFFER ?? '0');
+  await page.fill('#maxRungs', process.env.E2E_MAX_RUNGS ?? '3');
+}
+const KINDS = { add: 0, repay: 1, adjust: 2 };
+while (await page.locator('#steps .step').count()) await page.click('#steps .step button');
+for (const [i, st] of (process.env.E2E_STEPS || (v3 ? 'adjust:0.002/100,repay:100' : 'repay:100,add:0.002')).split(',').entries()) {
+  const [kind, amounts] = st.split(':');
+  const [a, b] = amounts.split('/');
+  await page.click('#addStep');
+  const row = page.locator('#steps .step').nth(i);
+  await row.locator('select').selectOption(String(KINDS[kind]));
+  if (kind !== 'repay') await row.locator('input').nth(0).fill(a);
+  if (kind !== 'add') await row.locator('input').nth(1).fill(kind === 'adjust' ? b : a);
+}
+console.log('ladder preview:', await page.innerText('#ladderPreview'));
 await page.fill('#btcWithdraw', '0.00001');
 await page.fill('#musdWithdraw', '10');
 const steps = {
@@ -132,6 +145,15 @@ const steps = {
   withdraw: () => step('withdraw', '#doWithdraw', 'withdraw: confirmed'),
   withdrawMUSD: () => step('withdrawMUSD', '#doWithdrawMUSD', 'withdrawMUSD: confirmed'),
   cancel: () => step('cancel', '#doCancel', 'cancel: confirmed'),
+  async protect() {
+    const { runProtectKeeper, guardAt } = await import('../src/guard.mjs');
+    const g = JSON.parse(fs.readFileSync(process.env.E2E_GUARD || new URL('../src/abi/TroveGuard.json', import.meta.url)));
+    const [r] = await runProtectKeeper(pc, account, { send: true, guard: guardAt(g.address, { abi: g.abi, version: g.version }) });
+    if (!r?.ok) throw new Error(`protect failed: ${r?.reason ?? 'no target'}`);
+    await page.click('#refresh');
+    await page.waitForFunction(() => !document.querySelector('#trove').textContent.includes('Loading'), null, { timeout: 60_000 });
+    console.log(`protect: ${r.rungs} rung(s) in ${r.tx}`);
+  },
 };
 for (const s of flow) {
   await steps[s]();
