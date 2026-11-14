@@ -1,0 +1,20 @@
+# Copy to wrangler.toml and fill in the KV namespace id from `npx wrangler kv namespace create WATCH`.
+name = "musd-trove-radar"
+main = "worker.mjs"
+compatibility_date = "2026-11-01"
+
+[[kv_namespaces]]
+binding = "WATCH"
+id = "<your KV namespace id>"
+
+[triggers]
+crons = ["*/5 * * * *"]
+
+[vars]
+RPC = "https://rpc.test.mezo.org"
+
+# Secrets, never in this file:
+#   npx wrangler secret put TELEGRAM_TOKEN     # from @BotFather
+#   npx wrangler secret put TELEGRAM_SECRET    # any random string, also given to setWebhook
+#   npx wrangler secret put WEBHOOK_URL        # optional
+#   npx wrangler secret put WEBHOOK_SECRET     # optional
