@@ -172,9 +172,11 @@ Use `npm run test:offline` to skip the network tests.
 
 `contracts/TroveGuard.sol` protects an MUSD trove automatically. The borrower parks a BTC reserve (and, since v2, an MUSD reserve) in the guard, picks a trigger ICR and stores a ladder of pre-signed permits: `addCollWithSignature` top-ups and `repayMUSDWithSignature` repayments. When the trove's ICR falls below the trigger, anyone can call `protect(borrower, upperHint, lowerHint)`. The guard spends the next permit, sends the signed BTC or MUSD into the borrower's own trove through `BorrowerOperationsSignatures`, and pays the caller a small tip from the BTC reserve. The radar's keeper is that caller.
 
-The current deployment is **v2**, which adds a [repay-MUSD mode](#repay-musd-mode-v2): a rung can also pay down debt from an MUSD reserve.
+The current deployment is **[v3](#troveguard-v3)**: `Adjust` rungs, a target ICR reached over several rungs in one call, and a redemption-front trigger. v2 added a [repay-MUSD mode](#repay-musd-mode-v2), where a rung pays down debt from an MUSD reserve.
 
-**Live on Mezo Testnet (v2):** [`0xa67c9bbcd4350b24e33e25e2ebd7c80c04409df7`](https://explorer.test.mezo.org/address/0xa67c9bbcd4350b24e33e25e2ebd7c80c04409df7) (source verified on the explorer). The address and ABI are in `src/abi/TroveGuard.json`.
+**Live on Mezo Testnet (v3):** [`0xe96e1f552aac9828f4c24e75f4aa895dcf7f5fb9`](https://explorer.test.mezo.org/address/0xe96e1f552aac9828f4c24e75f4aa895dcf7f5fb9) (source verified on the explorer). The address and ABI are in `src/abi/TroveGuard.json`; v2 stays in `src/abi/TroveGuardV2.json`. The [v3 transactions](#troveguard-v3-on-mezo-testnet) are below.
+
+**v2:** [`0xa67c9bbcd4350b24e33e25e2ebd7c80c04409df7`](https://explorer.test.mezo.org/address/0xa67c9bbcd4350b24e33e25e2ebd7c80c04409df7), also verified.
 
 The v2 demo sets the trigger at 200 %, above the trove's real ICR, so `protect` fires against the live oracle with no mocked price. Each `protect` row shows ICR before and after, decoded from the `Protected` event.
 
@@ -228,6 +230,19 @@ MEZO_RPC=http://127.0.0.1:8545 E2E_GUARD=forge-out/rehearsal/TroveGuard.json \
   E2E_STEPS='adjust:0.002/20,add:0.002,repay:20' node scripts/guard-e2e.mjs out
 ```
 On the fork the browser flow arms the guard, stores the three steps, and one keeper call spends two of them (ICR 192.9 % → 216.5 %) and stops at the 210 % target.
+
+#### TroveGuard v3 on Mezo Testnet
+
+The trigger sits above the trove's real ICR, so `protect` fires against the live oracle with no mocked price. The 300 % target is out of reach, so the call spends `maxRungs` and stops.
+
+| Step | Transaction |
+| --- | --- |
+| Deploy v3 (block 16775652) | [`0x41251c…01a2d`](https://explorer.test.mezo.org/tx/0x41251cb371218497f2229f44edda3dbd788267129dc85f4bc21f0c82c7601a2d) |
+| `configure`: trigger 250 %, target 300 %, max 3 rungs, tip 0.00001 BTC per rung, BTC reserve 0.00403 | [`0x5a22b3…ce5be`](https://explorer.test.mezo.org/tx/0x5a22b30a65a5ecca80d82b73992b49ad2930f57d5d594fb2a5ac482cd14ce5be) |
+| MUSD `approve` 40 | [`0x3b6ec2…84480`](https://explorer.test.mezo.org/tx/0x3b6ec2987aec5dd18769c3b7b86e61b9085fe1bce7f358cd48a3df23f9084480) |
+| `depositMUSD`: 40 MUSD reserve | [`0xb3d1e1…e2a02`](https://explorer.test.mezo.org/tx/0xb3d1e1fa9f92090d1e63e0f93129429d5e4565c08ca05bb0ccc8284b6cfe2a02) |
+| `storePermits`: Adjust +0.002 BTC −20 MUSD → AddColl 0.002 BTC → RepayMUSD 20 MUSD, nonces 5–7 | [`0x9b9579…bb19a`](https://explorer.test.mezo.org/tx/0x9b9579f9efda0fedbf62d6457c76dbc6f8e96e84d4d4f8ab5325916471ebb19a) |
+| `protect`, one keeper call spends all 3 rungs: ICR 117.52 % → 133.17 %, tip 0.00003 BTC | [`0xcd33fa…282eb`](https://explorer.test.mezo.org/tx/0xcd33fad9ea83f6c9698ad9872ec098b9c45441b2d2a9742aa94467e3f91282eb) |
 
 ### Why permits come in a ladder
 `BorrowerOperationsSignatures` gives each borrower a single nonce counter. Every `*WithSignature` call uses it: add or withdraw collateral, repay, refinance, close. The signed digest is `AddColl(assetAmount, borrower, nonce, deadline)` with the **current** nonce, and a successful call increments it. Three things follow:
