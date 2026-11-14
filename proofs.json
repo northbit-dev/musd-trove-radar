@@ -172,5 +172,12 @@
   {
     "label": "TroveGuard v3 storePermits from nonce 5: Adjust +0.002000 BTC −20 MUSD → AddColl 0.002000 BTC → RepayMUSD 20 MUSD",
     "hash": "0x9b9579f9efda0fedbf62d6457c76dbc6f8e96e84d4d4f8ab5325916471ebb19a"
+  },
+  {
+    "label": "TroveGuard v3 protect (low ICR): Adjust +0.002000 BTC −20 MUSD @5 → AddColl 0.002000 BTC @6 → RepayMUSD 20 MUSD @7; 0x20b854C2fCB761DF9f18b27cCBfBeD7276070D7B ICR 117.52 % → 133.17 %, keeper tip 0.00003 BTC for 3 rungs",
+    "hash": "0xcd33fad9ea83f6c9698ad9872ec098b9c45441b2d2a9742aa94467e3f91282eb",
+    "icrBefore": "1175194130051673657",
+    "icrAfter": "1331714352632207295",
+    "rungs": 3
   }
 ]
