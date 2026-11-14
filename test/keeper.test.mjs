@@ -88,6 +88,31 @@ test('protect keeper skips a guard whose tip does not pay for gas', async () => 
   assert.equal(paid.profit, E(8) - E(0.32));
 });
 
+test('protect keeper on v3: pays the tip per rung spent and hints for the trove after every rung', async () => {
+  const G = { address: owner('9'), abi: [], version: 3 };
+  const B = owner('e');
+  const next = { kind: KIND.Adjust, deadline: 9n, btc: E(0.002), musd: E(100), signature: '0x01' };
+  const reads = { guardedCount: 1n, guardedSlice: [B], getNominalICR: E(1.2), getTroveColl: E(0.05), getTrovePrincipal: E(3000), getTroveOwnersCount: 100n, findInsertPosition: [B, B], fetchPrice: PRICE, permitOf: { kind: KIND.RepayMUSD, btc: 0n, musd: E(200), deadline: 9n, signature: '0x02' } };
+  const hintNicr = [], sims = [], logs = [];
+  const pc = {
+    readContract: async ({ functionName, args }) => { if (functionName === 'getApproxHint') { hintNicr.push(args[0]); return [B, 0n, 0n]; } return reads[functionName]; },
+    multicall: async () => [
+      { status: 'success', result: { protectable: true, reason: 2, icr: E(1.6), musdAhead: E(50), nonce: 4n, next, reserve: E(0.01), musdReserve: E(300) } },
+      { status: 'success', result: [E(1.3), E(0.0001), E(1.8), E(1000), 1n, 3, true] },
+    ],
+    simulateContract: async (req) => { sims.push(req.args); return { request: req, result: 2n }; },
+    estimateContractGas: async () => 400_000n,
+    getGasPrice: async () => GP,
+  };
+  const [r] = await runProtectKeeper(pc, null, { guard: G, log: (m, f) => logs.push([m, f]) });
+  assert.equal(r.rungs, 2);
+  assert.equal(r.reward, (E(0.0002) * PRICE) / E(1));
+  assert.equal(sims.length, 2);
+  assert.ok(hintNicr[1] > hintNicr[0]);
+  assert.match(logs[0][0], /redeemable ahead.*2 rungs Adjust .* → RepayMUSD 200 MUSD/);
+  assert.equal(logs[0][1].reason, 'redemption front');
+});
+
 test('loop: RPC errors back off exponentially up to the cap, a success resets the delay, abort stops it', async () => {
   const sleeps = [], logs = [];
   let n = 0;
